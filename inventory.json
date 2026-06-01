@@ -1,0 +1,143 @@
+{
+  "version": "0.2",
+  "_comment": "Turkish suffix inventory. Tags follow UD (universaldependencies.org/u/feat/). Person-agreement markers come in two sets: _Z (-Hm/-sHn/-Hz/-sHnHz, after PROG/FUT/AOR/EVID) and _K (-m/-n/-k/-nHz, after PAST/COND). 3PL is shared. Which set is licensed in any given derivation is enforced by morphotactics.json.",
+
+  "suffixes": [
+
+    {"_section": "VERBAL — Voice"},
+    {"id": "CAUS", "template": "DHr",  "feats": {"Voice": "Cau"},  "category": "VOICE", "rules": ["causative_allomorphy"]},
+    {"id": "PASS", "template": "Hl",   "feats": {"Voice": "Pass"}, "category": "VOICE", "rules": ["passive_allomorphy"]},
+
+    {"_section": "VERBAL — Derivational V→V (lexicalized causative/passive-shaped). No Voice emitted; the morpheme exists to expose the derivation in the tokenization while remaining consistent with UD gold features. Gated by per-root flags caus_deriv / pass_deriv specifying which template applies."},
+    {"id": "CAUS_DERIV", "template": "Hr", "feats": {"_derivation": "CauDeriv"}, "category": "DERIV_V_V", "rules": ["caus_deriv_allomorphy"]},
+    {"id": "PASS_DERIV", "template": "Hn", "feats": {"_derivation": "PassDeriv"}, "category": "DERIV_V_V", "rules": ["pass_deriv_allomorphy"]},
+
+    {"_section": "VERBAL — Negation"},
+    {"id": "NEG",  "template": "mA",   "feats": {"Polarity": "Neg"}, "category": "NEG", "rules": [], "a_deletable": true},
+
+    {"_section": "VERBAL — Tense/Aspect/Mood"},
+    {"id": "PROG", "template": "Hyor",     "feats": {"Aspect": "Prog", "Tense": "Pres"}, "category": "TAM", "rules": ["delete_stem_final_low_vowel", "drop_initial_H_after_vowel_stem"]},
+    {"id": "PAST", "template": "DH",       "feats": {"Tense": "Past", "Evident": "Fh"},  "category": "TAM", "rules": []},
+    {"id": "EVID", "template": "mHş",      "feats": {"Tense": "Past", "Evident": "Nfh"}, "category": "TAM", "rules": []},
+    {"id": "FUT",  "template": "(y)AcAk",  "feats": {"Tense": "Fut"},                    "category": "TAM", "rules": []},
+    {"id": "AOR",  "template": "Hr",       "feats": {"Aspect": "Hab"},                   "category": "TAM", "rules": ["aorist_allomorphy"]},
+    {"id": "COND", "template": "sA",       "feats": {"Mood": "Cnd"},                     "category": "TAM", "rules": []},
+    {"id": "POT",  "template": "(y)Abil",  "feats": {"Mood": "Pot", "Aspect": "Hab"},    "category": "POT", "rules": ["potential_neg_suppletion"]},
+    {"id": "PAST_COP", "template": "(y)DH","feats": {"Tense": "Past", "Mood": "Ind"},    "category": "COP", "rules": []},
+
+    {"_section": "VERBAL — Imperative"},
+    {"id": "IMP_2PL", "template": "Hn",    "feats": {"Mood": "Imp", "Person": "2", "Number": "Plur", "Tense": "Pres"}, "category": "IMP", "rules": ["drop_initial_H_after_vowel_stem"]},
+    {"id": "IMP_3SG", "template": "sHn",   "feats": {"Mood": "Imp", "Person": "3", "Number": "Sing", "Tense": "Pres"}, "category": "IMP", "rules": []},
+
+    {"_section": "VERBAL — Optative (-(y)A; bare = 3sg, with 1sg/1pl agreement following)"},
+    {"id": "OPT",     "template": "(y)A",  "feats": {"Mood": "Opt", "Aspect": "Perf", "Tense": "Pres"}, "category": "OPT", "rules": []},
+    {"id": "OPT_1SG", "template": "(y)Hm", "feats": {"Person": "1", "Number": "Sing"},                   "category": "OPT_AGR", "rules": []},
+    {"id": "OPT_1PL", "template": "lHm",   "feats": {"Person": "1", "Number": "Plur"},                   "category": "OPT_AGR", "rules": []},
+
+    {"_section": "VERBAL — Converbs and participles (terminal verbal forms)"},
+    {"id": "ARAK", "template": "(y)ArAk",  "feats": {"VerbForm": "Conv", "Mood": "Ind", "Tense": "Pres"}, "category": "CONV", "rules": []},
+    {"id": "IP",   "template": "(y)Hp",    "feats": {"VerbForm": "Conv", "Mood": "Ind", "Tense": "Pres"}, "category": "CONV", "rules": []},
+    {"id": "INCE", "template": "(y)HncA",  "feats": {"VerbForm": "Conv", "Mood": "Ind"},                  "category": "CONV", "rules": []},
+    {"id": "AN",   "template": "(y)An",    "feats": {"VerbForm": "Part", "Mood": "Ind", "Tense": "Pres"}, "category": "PART", "rules": []},
+
+    {"_section": "VERBAL — Person agreement, z-type (after PROG/FUT/AOR/EVID)"},
+    {"id": "1SG_Z", "template": "(y)Hm",  "feats": {"Person": "1", "Number": "Sing"}, "category": "AGR_Z", "rules": ["neg_aor_agreement_suppletion"]},
+    {"id": "2SG_Z", "template": "sHn",    "feats": {"Person": "2", "Number": "Sing"}, "category": "AGR_Z", "rules": []},
+    {"id": "1PL_Z", "template": "(y)Hz", "feats": {"Person": "1", "Number": "Plur"}, "category": "AGR_Z", "rules": []},
+    {"id": "2PL_Z", "template": "sHnHz",  "feats": {"Person": "2", "Number": "Plur"}, "category": "AGR_Z", "rules": []},
+
+    {"_section": "VERBAL — Person agreement, k-type (after PAST/COND)"},
+    {"id": "1SG_K", "template": "m",      "feats": {"Person": "1", "Number": "Sing"}, "category": "AGR_K", "rules": []},
+    {"id": "2SG_K", "template": "n",      "feats": {"Person": "2", "Number": "Sing"}, "category": "AGR_K", "rules": []},
+    {"id": "1PL_K", "template": "k",      "feats": {"Person": "1", "Number": "Plur"}, "category": "AGR_K", "rules": []},
+    {"id": "2PL_K", "template": "nHz",    "feats": {"Person": "2", "Number": "Plur"}, "category": "AGR_K", "rules": []},
+
+    {"_section": "VERBAL — Person agreement, shared"},
+    {"id": "3PL",   "template": "lAr",    "feats": {"Person": "3", "Number": "Plur"}, "category": "AGR",   "rules": []},
+
+    {"_section": "NOMINAL — Number"},
+    {"id": "PLUR",  "template": "lAr",    "feats": {"Number": "Plur"}, "category": "NUM", "rules": []},
+
+    {"_section": "NOMINAL — Possessive"},
+    {"id": "POSS_1SG", "template": "Hm",   "feats": {"Person[psor]": "1", "Number[psor]": "Sing"}, "category": "POSS", "rules": ["drop_initial_H_after_vowel_stem"]},
+    {"id": "POSS_2SG", "template": "Hn",   "feats": {"Person[psor]": "2", "Number[psor]": "Sing"}, "category": "POSS", "rules": ["drop_initial_H_after_vowel_stem"]},
+    {"id": "POSS_3SG", "template": "(s)H", "feats": {"Person[psor]": "3", "Number[psor]": "Sing"}, "category": "POSS", "rules": []},
+    {"id": "POSS_1PL", "template": "HmHz", "feats": {"Person[psor]": "1", "Number[psor]": "Plur"}, "category": "POSS", "rules": ["drop_initial_H_after_vowel_stem"]},
+    {"id": "POSS_2PL", "template": "HnHz", "feats": {"Person[psor]": "2", "Number[psor]": "Plur"}, "category": "POSS", "rules": ["drop_initial_H_after_vowel_stem"]},
+    {"id": "POSS_3PL", "template": "lArH", "feats": {"Person[psor]": "3", "Number[psor]": "Plur"}, "category": "POSS", "rules": []},
+
+    {"_section": "NOMINAL — Case"},
+    {"id": "NOM", "template": "",       "feats": {"Case": "Nom"}, "category": "CASE", "rules": ["insert_n_after_3rd_person_possessive"]},
+    {"id": "ACC", "template": "(y)H",   "feats": {"Case": "Acc"}, "category": "CASE", "rules": ["insert_n_after_3rd_person_possessive"]},
+    {"id": "DAT", "template": "(y)A",   "feats": {"Case": "Dat"}, "category": "CASE", "rules": ["insert_n_after_3rd_person_possessive"]},
+    {"id": "LOC", "template": "DA",     "feats": {"Case": "Loc"}, "category": "CASE", "rules": ["insert_n_after_3rd_person_possessive"]},
+    {"id": "ABL", "template": "DAn",    "feats": {"Case": "Abl"}, "category": "CASE", "rules": ["insert_n_after_3rd_person_possessive"]},
+    {"id": "GEN", "template": "(n)Hn",  "feats": {"Case": "Gen"}, "category": "CASE", "rules": ["insert_n_after_3rd_person_possessive"]},
+    {"id": "INS", "template": "(y)lA",  "feats": {"Case": "Ins"}, "category": "CASE", "rules": ["insert_n_after_3rd_person_possessive"]},
+
+    {"_section": "DERIVATIONAL — Verbalizing (X → VERB)"},
+    {"id": "VBZ_LA",   "template": "lA",      "feats": {"_derivation": "N>V"},                            "category": "DERIV", "class_in": "NOUN", "class_out": "VERB", "rules": []},
+    {"id": "VBZ_LAS",  "template": "lAş",     "feats": {"_derivation": "ADJ>V"},                          "category": "DERIV", "class_in": "ADJ",  "class_out": "VERB", "rules": []},
+    {"id": "VBZ_LAN",  "template": "lAn",     "feats": {"_derivation": "N>V"},                            "category": "DERIV", "class_in": "NOUN", "class_out": "VERB", "rules": []},
+    {"id": "VBZ_A",    "template": "A",       "feats": {"_derivation": "N>V"},                            "category": "DERIV", "class_in": "NOUN", "class_out": "VERB", "rules": []},
+    {"id": "VBZ_AL",   "template": "Al",      "feats": {"_derivation": "ADJ>V"},                          "category": "DERIV", "class_in": "ADJ",  "class_out": "VERB", "rules": []},
+    {"id": "VBZ_AR",   "template": "Ar",      "feats": {"_derivation": "ADJ>V"},                          "category": "DERIV", "class_in": "ADJ",  "class_out": "VERB", "rules": []},
+    {"id": "VBZ_HMSA", "template": "(H)msA",  "feats": {"_derivation": "N>V"},                            "category": "DERIV", "class_in": "NOUN", "class_out": "VERB", "rules": []},
+    {"id": "VBZ_DA",   "template": "DA",      "feats": {"_derivation": "N>V"},                            "category": "DERIV", "class_in": "NOUN", "class_out": "VERB", "rules": [], "_note": "repeated-action -DA on onomatopoeic roots: fısılda, mırılda, parılda"},
+
+    {"_section": "DERIVATIONAL — Adjectivizing (X → ADJ)"},
+    {"id": "ADJZ_LH",  "template": "lH",      "feats": {"_derivation": "N>ADJ"},                          "category": "DERIV", "class_in": "NOUN", "class_out": "ADJ",  "rules": []},
+    {"id": "ADJZ_SHZ", "template": "sHz",     "feats": {"_derivation": "N>ADJ", "Polarity": "Neg"},       "category": "DERIV", "class_in": "NOUN", "class_out": "ADJ",  "rules": []},
+    {"id": "ADJZ_MSH", "template": "(H)msH",  "feats": {"_derivation": "N>ADJ"},                          "category": "DERIV", "class_in": "NOUN", "class_out": "ADJ",  "rules": []},
+    {"id": "ADJZ_MTRK","template": "(H)mtırak","feats": {"_derivation": "N>ADJ"},                         "category": "DERIV", "class_in": "ADJ",  "class_out": "ADJ",  "rules": [], "_note": "'X-ish' for colors: yeşilimtırak, sarımtırak"},
+    {"id": "ADJZ_CHL", "template": "CHl",     "feats": {"_derivation": "N>ADJ"},                          "category": "DERIV", "class_in": "NOUN", "class_out": "ADJ",  "rules": [], "_note": "color/material: kırçıl 'greyish', akçıl"},
+    {"id": "ADJ_GHN",  "template": "GHn",     "feats": {"_derivation": "V>ADJ"},                          "category": "DERIV", "class_in": "VERB", "class_out": "ADJ",  "rules": []},
+    {"id": "ADJ_HK",   "template": "Hk",      "feats": {"_derivation": "V>ADJ"},                          "category": "DERIV", "class_in": "VERB", "class_out": "ADJ",  "rules": []},
+    {"id": "ADJ_GAN",  "template": "GAn",     "feats": {"_derivation": "V>ADJ"},                          "category": "DERIV", "class_in": "VERB", "class_out": "ADJ",  "rules": [], "_note": "habitual agent: unutkan 'forgetful', çalışkan 'hardworking', kaçkın"},
+    {"id": "ADJ_MAZ",  "template": "mAz",     "feats": {"_derivation": "V>ADJ", "Polarity": "Neg"},       "category": "DERIV", "class_in": "VERB", "class_out": "ADJ",  "rules": [], "_note": "negative-aorist participle adj: bitmez 'unending', tükenmez"},
+    {"id": "AGENT",    "template": "(y)HcH",  "feats": {"_derivation": "V>ADJ"},                          "category": "DERIV", "class_in": "VERB", "class_out": "ADJ",  "rules": []},
+
+    {"_section": "DERIVATIONAL — Nominalizing N → N"},
+    {"id": "NDER_CH",  "template": "CH",      "feats": {"_derivation": "Agent"},                          "category": "DERIV", "class_in": "NOUN", "class_out": "NOUN", "rules": []},
+    {"id": "NDER_LHK", "template": "lHk",     "feats": {"_derivation": "Abst"},                           "category": "DERIV", "class_in": "NOUN", "class_out": "NOUN", "rules": []},
+    {"id": "NDER_CHK", "template": "CHk",     "feats": {"_derivation": "Dim"},                            "category": "DERIV", "class_in": "NOUN", "class_out": "NOUN", "rules": []},
+    {"id": "NDER_CAGIZ","template":"CAğHz",   "feats": {"_derivation": "DimAff"},                         "category": "DERIV", "class_in": "NOUN", "class_out": "NOUN", "rules": [], "_note": "affectionate diminutive: yavrucağız, kızcağız"},
+    {"id": "NDER_DAS", "template": "DAş",     "feats": {"_derivation": "Comp"},                           "category": "DERIV", "class_in": "NOUN", "class_out": "NOUN", "rules": []},
+    {"id": "NDER_GHL", "template": "gHl",     "feats": {"_derivation": "Family"},                         "category": "DERIV", "class_in": "NOUN", "class_out": "NOUN", "rules": [], "_note": "'X's family/place': teyzemgil, dayımgil. Attaches to possessive-marked stems."},
+
+    {"_section": "DERIVATIONAL — Nominalizing V → N"},
+    {"id": "NMZ_INF",  "template": "mAk",     "feats": {"VerbForm": "Vnoun"},                             "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": []},
+    {"id": "NMZ_GER",  "template": "mA",      "feats": {"VerbForm": "Vnoun"},                             "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": []},
+    {"id": "NMZ_HS",   "template": "(y)Hş",   "feats": {"_derivation": "Action"},                         "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": []},
+    {"id": "NMZ_HM",   "template": "(y)Hm",   "feats": {"_derivation": "Inst"},                           "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": []},
+    {"id": "NMZ_MAN",  "template": "mAn",     "feats": {"_derivation": "Agent"},                          "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": []},
+    {"id": "NMZ_HNTI", "template": "Hntı",    "feats": {"_derivation": "Residue"},                        "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": [], "_note": "residue/by-product: süprüntü, döküntü, akıntı, kuruntu"},
+    {"id": "NMZ_MACA", "template": "mAcA",    "feats": {"_derivation": "Game"},                           "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": [], "_note": "game/puzzle: bilmece, bulmaca, bekleme"},
+    {"id": "NMZ_DHKCE","template": "DHkçA",   "feats": {"_derivation": "AsLongAs"},                       "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": [], "_note": "'the more X / as long as X': geldikçe, oldukça (became adverbial)"},
+    {"id": "DHK",      "template": "DHk",     "feats": {"VerbForm": "Part"},                              "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": []},
+    {"id": "FUT_PART", "template": "(y)AcAk", "feats": {"Tense": "Fut", "VerbForm": "Part"},              "category": "DERIV", "class_in": "VERB", "class_out": "NOUN", "rules": []},
+
+    {"_section": "DERIVATIONAL — Adverbializing (X → ADV-ish, attaches like ADJ but terminal)"},
+    {"id": "ADV_CA",   "template": "CA",      "feats": {"_derivation": "Adv"},                            "category": "DERIV", "class_in": "ADJ",  "class_out": "ADJ",  "rules": []},
+
+    {"_section": "DERIVATIONAL — Verb-modifier V → V (quick aspect; reciprocal also goes here)"},
+    {"id": "VER",      "template": "(y)Hver", "feats": {"_derivation": "VModRapid", "Aspect": "Rapid"},   "category": "VERB_MOD", "class_in": "VERB", "class_out": "VERB", "rules": []},
+    {"id": "RECP",     "template": "(H)ş",    "feats": {"_derivation": "Recp", "Voice": "Rcp"},           "category": "VERB_MOD", "class_in": "VERB", "class_out": "VERB", "rules": []},
+    {"id": "VMOD_GEL", "template": "(y)Agel", "feats": {"_derivation": "VModContinual", "Aspect": "Hab"}, "category": "VERB_MOD", "class_in": "VERB", "class_out": "VERB", "rules": [], "_note": "continual: olagelmek 'to keep happening', süregelmek"},
+    {"id": "VMOD_DUR", "template": "(y)Adur", "feats": {"_derivation": "VModContinual", "Aspect": "Prog"},"category": "VERB_MOD", "class_in": "VERB", "class_out": "VERB", "rules": [], "_note": "keep-on-X: bekleyedurmak, sürdüregelmek"},
+    {"id": "VMOD_YAZ", "template": "(y)Ayaz", "feats": {"_derivation": "VModAlmost"},                     "category": "VERB_MOD", "class_in": "VERB", "class_out": "VERB", "rules": [], "_note": "almost-Xed: düşeyazdı 'almost fell', öleyazdı"},
+
+    {"_section": "VERBAL — Necessitative mood (-mAlH 'must'). The desiderative -sA 'if only' is morphologically identical to conditional COND, so we model only COND."},
+    {"id": "NEC",      "template": "mAlH",    "feats": {"Mood": "Nec"},                                   "category": "TAM", "rules": []},
+
+    {"_section": "NOMINAL — Case (equative -CA 'in the manner of, like')"},
+    {"id": "EQU",      "template": "CA",      "feats": {"Case": "Equ"},                                   "category": "CASE", "rules": []},
+
+    {"_section": "COPULAR — finite copular suffixes attaching to noun/adj/case-marked stems"},
+    {"id": "COP_EVID", "template": "(y)mHş", "feats": {"Evident": "Nfh", "Tense": "Past", "Mood": "Ind"}, "category": "COP", "rules": []},
+    {"id": "COP_DHR",  "template": "DHr",    "feats": {"Tense": "Pres", "Mood": "Gen"},                 "category": "COP", "rules": []},
+    {"id": "COP_COND", "template": "(y)sA",  "feats": {"Mood": "Cnd"},                                  "category": "COP", "rules": []},
+    {"id": "CASINA",   "template": "cAsHnA", "feats": {"_derivation": "AsIf"},                          "category": "ADV_DERIV", "rules": []},
+    {"id": "REL_KI",   "template": "ki",     "feats": {"_derivation": "Rel"},                           "category": "REL", "rules": []}
+  ]
+}

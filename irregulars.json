@@ -1,0 +1,86 @@
+{
+  "_comment": "Hand-curated overrides for irregular roots. Merged into the corpus-extracted lexicon by extract_lexicon.py. Captures phenomena the extractor can't infer: root allomorphy where the stem vowel itself changes, and lexically-marked aorist allomorphy.",
+
+  "overrides": [
+    {
+      "form": "de",
+      "class": "VERB",
+      "_note": "de- (to say): becomes di- before -Hyor → diyor, not deyor",
+      "variants": ["di"]
+    },
+    {
+      "form": "ye",
+      "class": "VERB",
+      "_note": "ye- (to eat): becomes yi- before -Hyor → yiyor, not yeyor",
+      "variants": ["yi"]
+    },
+
+    {"_section": "Monosyllabic verbs that take -Hr (high-vowel) aorist instead of the default -Ar. Canonical list from Turkish reference grammars."},
+    {"form": "al",  "class": "VERB", "aorist_high": true, "_note": "al-ır (takes)"},
+    {"form": "bil", "class": "VERB", "aorist_high": true, "_note": "bil-ir (knows)"},
+    {"form": "bul", "class": "VERB", "aorist_high": true, "_note": "bul-ur (finds)"},
+    {"form": "dur", "class": "VERB", "aorist_high": true, "_note": "dur-ur (stops/stands)"},
+    {"form": "gel", "class": "VERB", "aorist_high": true, "_note": "gel-ir (comes)"},
+    {"form": "gör", "class": "VERB", "aorist_high": true, "_note": "gör-ür (sees)"},
+    {"form": "kal", "class": "VERB", "aorist_high": true, "_note": "kal-ır (stays)"},
+    {"form": "ol",  "class": "VERB", "aorist_high": true, "_note": "ol-ur (becomes)"},
+    {"form": "öl",  "class": "VERB", "aorist_high": true, "_note": "öl-ür (dies)"},
+    {"form": "san", "class": "VERB", "aorist_high": true, "_note": "san-ır (supposes)"},
+    {"form": "var", "class": "VERB", "aorist_high": true, "_note": "var-ır (arrives)"},
+    {"form": "ver", "class": "VERB", "aorist_high": true, "_note": "ver-ir (gives)"},
+    {"form": "vur", "class": "VERB", "aorist_high": true, "_note": "vur-ur (hits)"},
+
+    {"_section": "Demonstrative and personal pronouns: insert pronominal -n- before case markers (bunu, şunu, onu, kendini). Modeled as a per-root flag pronominal_n that triggers the same n-insertion rule as POSS_3SG/POSS_3PL."},
+    {"form": "bu",   "class": "NOUN", "pronominal_n": true, "frequency": 500, "_note": "this (demonstrative). bu + ACC → bunu"},
+    {"form": "şu",   "class": "NOUN", "pronominal_n": true, "frequency": 200, "_note": "that (proximal demonstrative). şu + ACC → şunu"},
+    {"form": "o",    "class": "NOUN", "pronominal_n": true, "frequency": 800, "_note": "that / he/she/it. o + ACC → onu"},
+
+    {"_section": "Personal pronouns. ben and sen are irregular in the dative: the stem vowel changes from -e to -a, so bana and sana surface — modeled via variants. They also have irregular GEN: benim, senim instead of benin, senin? Actually GEN is benim, senin which IS regular (-Hn). The GEN is regular. Only DAT is irregular: ben+e → bana, sen+e → sana."},
+    {"form": "ben",  "class": "NOUN", "variants": ["ban"], "frequency": 600, "_note": "I. ban variant only used before DAT: ban+a → bana"},
+    {"form": "sen",  "class": "NOUN", "variants": ["san"], "frequency": 500, "_note": "you (sg). san variant only used before DAT: san+a → sana"},
+    {"form": "biz",  "class": "NOUN", "frequency": 400, "_note": "we (1pl personal pronoun)"},
+    {"form": "siz",  "class": "NOUN", "frequency": 400, "_note": "you (pl/formal personal pronoun)"},
+
+    {"_section": "Reflexive pronoun: kendi 'self/own'. Takes possessive suffixes (kendim 'myself', kendin 'yourself', kendisi 'himself/herself/itself'). With possessive + case, the pronominal-n surfaces normally via the POSS_3SG/POSS_3PL n-insertion rule. Plain 'kendi' alone is the genitive/adjectival form 'one's own'."},
+    {"form": "kendi", "class": "NOUN", "frequency": 350, "_note": "self / one's own. With possessive: kendim, kendin, kendisi, kendimiz, kendiniz, kendileri"},
+
+    {"_section": "Interrogative pronouns and locatives"},
+    {"form": "kim",  "class": "NOUN", "frequency": 300, "_note": "who (interrogative pronoun)"},
+    {"form": "ne",   "class": "NOUN", "frequency": 350, "_note": "what (interrogative pronoun)"},
+    {"form": "nere", "class": "NOUN", "frequency": 100, "_note": "where (interrogative locative root; takes case: nerede, nereye, nereden)"},
+    {"form": "kaç",  "class": "NOUN", "frequency": 150, "_note": "how many (interrogative quantifier)"},
+    {"form": "hangi","class": "NOUN", "frequency": 150, "_note": "which (interrogative determiner)"},
+    {"form": "nasıl","class": "NOUN", "frequency": 200, "_note": "how (interrogative manner)"},
+    {"form": "niye", "class": "NOUN", "frequency":  80, "_note": "why (= ne+ye, frozen)"},
+    {"form": "niçin","class": "NOUN", "frequency":  60, "_note": "why (= ne+için, frozen)"},
+
+    {"_section": "Indefinite and quantifier pronouns"},
+    {"form": "biri",   "class": "NOUN", "frequency": 200, "_note": "someone (= bir+i, frozen with 3sg possessive)"},
+    {"form": "kimse",  "class": "NOUN", "frequency": 150, "_note": "anyone/no one (negative polarity)"},
+    {"form": "herkes", "class": "NOUN", "frequency": 200, "_note": "everyone"},
+    {"form": "hiç",    "class": "NOUN", "frequency": 250, "_note": "nothing/at all (negative polarity)"},
+    {"form": "bazı",   "class": "ADJ",  "frequency": 200, "_note": "some"},
+    {"form": "her",    "class": "ADJ",  "frequency": 350, "_note": "every (universal quantifier)"},
+    {"form": "tüm",    "class": "ADJ",  "frequency": 250, "_note": "all/whole"},
+    {"form": "bütün",  "class": "ADJ",  "frequency": 250, "_note": "all/whole/entire"},
+    {"form": "çoğu",   "class": "NOUN", "frequency": 100, "_note": "most (of) (= çok+u, frozen)"},
+    {"form": "bir",    "class": "NOUN", "frequency": 800, "_note": "one / a (indefinite article)"},
+    {"form": "şey",    "class": "NOUN", "frequency": 600, "_note": "thing"},
+
+    {"_section": "Reciprocal pronoun"},
+    {"form": "birbir", "class": "NOUN", "frequency": 100, "_note": "each other (root form; takes possessive: birbirimiz 'each other (1pl)', birbiri 'each other (3sg)')"},
+
+    {"_section": "Plural demonstratives. These are bu/şu/o + lar with pronominal-n behavior preserved: 'onları' (acc) decomposes as o+PLUR+ACC with n-insertion. But the lexicalized forms bunlar/şunlar/onlar appear as their own headwords too; we leave them out and let the parser decompose."},
+
+    {"_section": "Question particles mi/mı/mu/mü. In Turkish orthography these are written as separate words (Geldin mi? = 'Did you come?'). The form harmonizes to the previous stem's vowel: e/i → mi, a/ı → mı, o/u → mu, ö/ü → mü. We list all four allomorphs as separate lex entries with high frequency. Class is NOUN (UD treats it as PART; mapping to NOUN keeps the lexicon-loader simple while still parsing correctly)."},
+    {"form": "mi",   "class": "NOUN", "frequency": 1500, "_note": "question particle (after e/i)"},
+    {"form": "mı",   "class": "NOUN", "frequency": 1500, "_note": "question particle (after a/ı)"},
+    {"form": "mu",   "class": "NOUN", "frequency":  500, "_note": "question particle (after o/u)"},
+    {"form": "mü",   "class": "NOUN", "frequency":  500, "_note": "question particle (after ö/ü)"},
+
+    {"_section": "Negative/non-existential particle 'değil' and existential 'var/yok'. These are extremely common but tend to be missed by extraction."},
+    {"form": "değil","class": "NOUN", "frequency":  800, "_note": "negation/copular not (Bu kitap değil = 'This is not a book')"},
+    {"form": "var",  "class": "NOUN", "frequency":  500, "_note": "existential 'there is'. Also a regular verb meaning 'to arrive'."},
+    {"form": "yok",  "class": "NOUN", "frequency":  500, "_note": "non-existential 'there is not'"}
+  ]
+}

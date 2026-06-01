@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turkish Morphological Tokenizer</title>
+<style>
+  /* ---------- reset + base ---------- */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    background: #fafaf7;
+    color: #1d1d1d;
+    line-height: 1.5;
+    font-size: 16px;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; font-weight: 600; }
+  h2 { font-size: 1.05rem; margin: 28px 0 12px; font-weight: 600;
+       color: #555; letter-spacing: 0.02em; text-transform: uppercase; }
+  .subtitle { color: #666; margin: 0 0 28px; font-size: 0.95rem; }
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- input area ---------- */
+  .mode-tabs {
+    display: flex; gap: 4px; margin-bottom: 12px;
+    border-bottom: 1px solid #ddd;
+  }
+  .mode-tab {
+    padding: 8px 16px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: #666;
+    font: inherit;
+    font-size: 0.95rem;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .mode-tab:hover { color: #222; }
+  .mode-tab.active { color: #1d1d1d; border-bottom-color: #1d1d1d; }
+
+  .input-wrap { position: relative; margin-bottom: 18px; }
+  textarea, input.word-input {
+    width: 100%;
+    padding: 14px 16px;
+    font: inherit;
+    font-size: 1.05rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    resize: vertical;
+    color: #1d1d1d;
+  }
+  input.word-input { font-size: 1.3rem; padding: 12px 16px; }
+  textarea { min-height: 100px; font-family: inherit; }
+  textarea:focus, input.word-input:focus {
+    outline: none;
+    border-color: #1d1d1d;
+  }
+  .submit-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  button.submit {
+    padding: 9px 18px;
+    border: 1px solid #1d1d1d;
+    background: #1d1d1d;
+    color: #fafaf7;
+    border-radius: 5px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.95rem;
+    transition: background 0.1s;
+  }
+  button.submit:hover { background: #000; }
+  button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .hint { color: #888; font-size: 0.85rem; }
+
+  /* ---------- samples ---------- */
+  .samples {
+    margin: 4px 0 0; padding: 0;
+    list-style: none;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .samples li {
+    padding: 4px 10px;
+    background: #efeee8;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: #444;
+    transition: background 0.1s;
+  }
+  .samples li:hover { background: #e3e2d8; }
+
+  /* ---------- result panels ---------- */
+  .panel {
+    background: #fff;
+    border: 1px solid #e5e5dd;
+    border-radius: 8px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+  }
+  .panel.error {
+    background: #fdf3f3;
+    border-color: #e8c5c5;
+    color: #882020;
+  }
+
+  /* ---------- morpheme display ---------- */
+  /* Each morpheme is a chip with a colored top stripe by category. The
+     root is the leftmost chip with no stripe — it's the lemma. */
+  .morphs {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch;
+    margin: 6px 0 10px;
+    line-height: 1.4;
+  }
+  .morph {
+    display: flex; flex-direction: column;
+    border-radius: 5px;
+    background: #f5f5f0;
+    border: 1px solid #e5e5dd;
+    /* Note: NO overflow:hidden here. The hover tooltip needs to extend
+       beyond the chip's bounding box. The chip's interior uses its own
+       rounded-corner clipping via .stripe and .body styles. */
+    cursor: default;
+    transition: transform 0.08s;
+    position: relative;
+  }
+  .morph:hover { transform: translateY(-1px); }
+  .morph .stripe {
+    height: 4px;
+    background: #888;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+  }
+  .morph .body {
+    padding: 6px 10px 7px;
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .morph .chunk {
+    font-size: 1.15rem; font-weight: 500; color: #1d1d1d;
+    font-feature-settings: "tnum";
+  }
+  .morph .chunk.empty { color: #aaa; font-style: italic; }
+  .morph .id {
+    font-size: 0.72rem; font-weight: 600;
+    color: #555; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .morph.root { background: #fffefa; }
+  .morph.root .id { color: #1d1d1d; }
+
+  /* Category colors. ROOT gets nothing (background distinguishes it).
+     Voice = red, Negation = orange, TAM = purple, Mood = teal,
+     Agreement = blue, Case/Possession = green, Derivation = gold,
+     Other = grey. */
+  .morph.cat-VOICE      .stripe { background: #c0392b; }
+  .morph.cat-DERIV_V_V  .stripe { background: #e67e22; }
+  .morph.cat-NEG        .stripe { background: #d35400; }
+  .morph.cat-POT        .stripe { background: #8e44ad; }
+  .morph.cat-TAM        .stripe { background: #6c3baa; }
+  .morph.cat-PAST_COP   .stripe { background: #6c3baa; }
+  .morph.cat-IMP        .stripe { background: #16a085; }
+  .morph.cat-OPT        .stripe { background: #16a085; }
+  .morph.cat-OPT_AGR    .stripe { background: #16a085; }
+  .morph.cat-CONV       .stripe { background: #1f8794; }
+  .morph.cat-PART       .stripe { background: #1f8794; }
+  .morph.cat-FUT_PART   .stripe { background: #1f8794; }
+  .morph.cat-AGR_K      .stripe { background: #2980b9; }
+  .morph.cat-AGR_Z      .stripe { background: #2980b9; }
+  .morph.cat-AGR_PL     .stripe { background: #2980b9; }
+  .morph.cat-CASE       .stripe { background: #27ae60; }
+  .morph.cat-POSS       .stripe { background: #16a368; }
+  .morph.cat-PLUR       .stripe { background: #16a368; }
+  .morph.cat-NUM        .stripe { background: #16a368; }
+  .morph.cat-DERIV      .stripe { background: #b8860b; }
+  .morph.cat-COND       .stripe { background: #6c3baa; }
+  .morph.cat-COP        .stripe { background: #6c3baa; }
+  .morph.cat-REL        .stripe { background: #b8860b; }
+  .morph.cat-ADV_DERIV  .stripe { background: #b8860b; }
+  .morph.cat-VERB_MOD   .stripe { background: #8e44ad; }
+
+  /* Feats popup on hover/focus.
+     Positioned ABOVE the chip so it doesn't get clipped by chips below.
+     Wider, with word-wrapping so long feature lists fit cleanly. Pointer
+     events disabled so it doesn't block re-targeting of adjacent chips. */
+  .morph[data-feats]::after {
+    content: attr(data-feats);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1d1d1d;
+    color: #fafaf7;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    padding: 8px 12px;
+    border-radius: 5px;
+    min-width: 180px;
+    max-width: 320px;
+    white-space: normal;
+    word-break: break-word;
+    text-align: left;
+    z-index: 100;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    pointer-events: none;
+    /* Hidden by default; reveal on hover/focus via opacity. Using
+       opacity (rather than display:none) gives a clean fade on hover. */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s, visibility 0.12s;
+  }
+  /* Little arrow pointing down from the tooltip to the chip. */
+  .morph[data-feats]::before {
+    content: "";
+    position: absolute;
+    bottom: calc(100% + 1px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1d1d1d;
+    z-index: 101;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s, visibility 0.12s;
+  }
+  .morph[data-feats]:hover::after,
+  .morph[data-feats]:focus::after,
+  .morph[data-feats]:hover::before,
+  .morph[data-feats]:focus::before {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  /* ---------- meta row (root, class, score) ---------- */
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 14px;
+    font-size: 0.88rem; color: #555;
+    border-top: 1px solid #eee;
+    padding-top: 10px; margin-top: 4px;
+  }
+  .meta b { color: #1d1d1d; font-weight: 600; }
+  .pill {
+    display: inline-block;
+    padding: 1px 7px; border-radius: 3px;
+    background: #efeee8; color: #555;
+    font-size: 0.78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .pill.oov { background: #fdf3f3; color: #882020; }
+
+  /* ---------- features table ---------- */
+  .features {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 2px 14px;
+    font-size: 0.9rem;
+    margin-top: 8px;
+  }
+  .features .k { color: #555; font-weight: 600; }
+  .features .v { color: #1d1d1d; font-family: ui-monospace, Menlo, monospace; }
+
+  /* ---------- alternatives ---------- */
+  details { margin-top: 12px; }
+  details summary {
+    cursor: pointer; color: #555; font-size: 0.9rem;
+    padding: 4px 0;
+  }
+  details summary:hover { color: #1d1d1d; }
+  details[open] summary { color: #1d1d1d; }
+  .alts { margin-top: 8px; padding-left: 14px; border-left: 2px solid #e5e5dd; }
+  .alt {
+    margin: 10px 0 14px;
+    font-size: 0.92rem;
+    color: #666;
+  }
+  .alt .alt-meta {
+    font-size: 0.78rem; color: #888; margin-top: 4px;
+  }
+
+  /* ---------- sentence mode ---------- */
+  .sentence-wrap {
+    margin-top: 8px;
+  }
+  .sentence-token {
+    display: inline-block;
+    vertical-align: top;
+    margin: 0 1px 6px;
+  }
+  .sentence-token.punct, .sentence-token.space {
+    vertical-align: bottom;
+    color: #888;
+    padding: 0 1px;
+  }
+  .sentence-token.space { width: 6px; }
+  .sentence-token.word {
+    border-radius: 5px;
+    transition: background 0.1s;
+  }
+  .sentence-token.word:hover { background: #efeee8; }
+  .sentence-token.word.selected { background: #fff; outline: 2px solid #1d1d1d; outline-offset: 1px; }
+  .word-inner {
+    padding: 4px 8px 5px;
+    cursor: pointer;
+    display: inline-block;
+  }
+  .word-inner .surf {
+    font-size: 1.05rem;
+  }
+  .word-inner .split {
+    display: block; font-size: 0.78rem; color: #555;
+    font-family: ui-monospace, Menlo, monospace;
+    margin-top: 1px;
+  }
+  .sentence-token.word.oov .surf { color: #999; }
+  .sentence-detail {
+    margin-top: 16px;
+    border-top: 1px dashed #ddd;
+    padding-top: 14px;
+  }
+  .sentence-detail.empty {
+    color: #888; font-size: 0.9rem; font-style: italic;
+  }
+
+  /* ---------- legend ---------- */
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 12px;
+    margin-top: 16px; padding: 10px 14px;
+    background: #f5f5f0; border-radius: 6px;
+    font-size: 0.82rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 2px; display: inline-block;
+  }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 50px; padding-top: 20px;
+    border-top: 1px solid #e5e5dd;
+    font-size: 0.85rem; color: #888;
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 600px) {
+    main { padding: 20px 16px 60px; }
+    h1 { font-size: 1.35rem; }
+    .panel { padding: 14px 16px; }
+    .morph .chunk { font-size: 1rem; }
+    input.word-input { font-size: 1.1rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Turkish Morphological Tokenizer</h1>
+<p class="subtitle">
+  Decomposes inflected Turkish words into their roots and morphemes.
+  Recognizes ~50 suffixes covering nominal and verbal inflection, mood,
+  voice, derivation, participles, and compound tenses.
+</p>
+
+<div class="mode-tabs">
+  <button class="mode-tab active" data-mode="word"
+          onclick="setMode('word')">Single word</button>
+  <button class="mode-tab" data-mode="text"
+          onclick="setMode('text')">Sentence / text</button>
+</div>
+
+<!-- ============================================================
+     Single-word mode
+============================================================ -->
+<div id="mode-word">
+  <div class="input-wrap">
+    <input class="word-input" id="word-input"
+           autocomplete="off" autocapitalize="off" autocorrect="off"
+           spellcheck="false"
+           placeholder="Type a Turkish word…">
+  </div>
+  <div class="submit-row">
+    <button class="submit" onclick="runWord()">Analyze</button>
+    <span class="hint">or press Enter</span>
+  </div>
+  <ul class="samples" id="samples-word">
+    <li onclick="setWord('kitabımı')">kitabımı</li>
+    <li onclick="setWord('geliyordum')">geliyordum</li>
+    <li onclick="setWord('çıkardı')">çıkardı</li>
+    <li onclick="setWord('gelmeyeyim')">gelmeyeyim</li>
+    <li onclick="setWord('söylemişti')">söylemişti</li>
+    <li onclick="setWord('yazmak')">yazmak</li>
+    <li onclick="setWord('olduğu')">olduğu</li>
+    <li onclick="setWord('yaptırıldı')">yaptırıldı</li>
+    <li onclick="setWord('evlerimizde')">evlerimizde</li>
+  </ul>
+  <div id="word-result"></div>
+</div>
+
+<!-- ============================================================
+     Sentence-level mode
+============================================================ -->
+<div id="mode-text" style="display: none;">
+  <div class="input-wrap">
+    <textarea id="text-input"
+              placeholder="Paste a sentence or short paragraph in Turkish…"></textarea>
+  </div>
+  <div class="submit-row">
+    <button class="submit" onclick="runText()">Analyze</button>
+    <span class="hint">click on any word for detail</span>
+  </div>
+  <ul class="samples" id="samples-text">
+    <li onclick="setText('Kitabımı arkadaşıma verdim.')">
+      Kitabımı arkadaşıma verdim.
+    </li>
+    <li onclick="setText('Çocuklar bahçede oynuyorlardı.')">
+      Çocuklar bahçede oynuyorlardı.
+    </li>
+    <li onclick="setText('Yarın gelirsen, seninle konuşurum.')">
+      Yarın gelirsen, seninle konuşurum.
+    </li>
+    <li onclick="setText('Bunu yapmamış olabilir.')">
+      Bunu yapmamış olabilir.
+    </li>
+  </ul>
+  <div id="text-result"></div>
+</div>
+
+<footer>
+  <p>
+    Rule-based morphological parser written in Python with no
+    external dependencies. The full inventory, morphotactic graph,
+    and source are
+    <a href="https://github.com/" target="_blank">on GitHub</a>.
+    See <code>USAGE.md</code> for the API and <code>DESIGN.md</code>
+    for the architecture.
+  </p>
+</footer>
+
+</main>
+
+<script>
+/* ====================================================================
+   Frontend logic. Single file, no framework. Talks to two endpoints:
+     GET  /api/tokenize?word=X
+     POST /api/tokenize_text   { "text": "..." }
+
+   Both return the JSON wire format documented in tr_api.py.
+==================================================================== */
+
+const $ = (id) => document.getElementById(id);
+
+// ----- mode switching -----
+function setMode(mode) {
+  $("mode-word").style.display = (mode === "word") ? "" : "none";
+  $("mode-text").style.display = (mode === "text") ? "" : "none";
+  document.querySelectorAll(".mode-tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.mode === mode)
+  );
+  // Focus the relevant input
+  if (mode === "word") $("word-input").focus();
+  else                 $("text-input").focus();
+}
+
+// ----- sample helpers -----
+function setWord(w) { $("word-input").value = w; runWord(); }
+function setText(t) { $("text-input").value = t; runText(); }
+
+// ----- keyboard handlers -----
+$("word-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); runWord(); }
+});
+$("text-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault(); runText();
+  }
+});
+
+/* ====================================================================
+   Single-word mode
+==================================================================== */
+async function runWord() {
+  const word = $("word-input").value.trim();
+  if (!word) return;
+  const target = $("word-result");
+  target.innerHTML = '<div class="panel"><em>Analyzing…</em></div>';
+  try {
+    const resp = await fetch("/api/tokenize?word=" + encodeURIComponent(word));
+    const data = await resp.json();
+    target.innerHTML = renderWordResult(data);
+  } catch (err) {
+    target.innerHTML = `<div class="panel error">Error: ${escapeHTML(err.message)}</div>`;
+  }
+}
+
+function renderWordResult(data) {
+  if (!data.parsed) {
+    return `<div class="panel error">Could not parse: ${escapeHTML(data.error || "unknown")}</div>`;
+  }
+  let html = `<div class="panel">`;
+  html += `<h2>Morphemes</h2>`;
+  html += renderMorphemeChips(data.morphemes);
+  html += renderMeta(data);
+  html += renderFeatures(data.features);
+  if (data.alternatives && data.alternatives.length > 0) {
+    html += renderAlternatives(data.alternatives);
+  }
+  html += renderLegend();
+  html += `</div>`;
+  return html;
+}
+
+/* ====================================================================
+   Sentence mode
+==================================================================== */
+async function runText() {
+  const text = $("text-input").value.trim();
+  if (!text) return;
+  const target = $("text-result");
+  target.innerHTML = '<div class="panel"><em>Analyzing…</em></div>';
+  try {
+    const resp = await fetch("/api/tokenize_text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text }),
+    });
+    const data = await resp.json();
+    target.innerHTML = renderSentenceResult(data);
+    wireSentenceClicks();
+  } catch (err) {
+    target.innerHTML = `<div class="panel error">Error: ${escapeHTML(err.message)}</div>`;
+  }
+}
+
+// Stored once after rendering so click handlers can look up the
+// analysis for the clicked word without re-fetching.
+let lastSentenceData = null;
+
+function renderSentenceResult(data) {
+  lastSentenceData = data;
+  if (data.error) {
+    return `<div class="panel error">Error: ${escapeHTML(data.error)}</div>`;
+  }
+  let html = `<div class="panel">`;
+  html += `<h2>Tokens</h2>`;
+  html += `<div class="sentence-wrap">`;
+  data.tokens.forEach((tok, i) => {
+    html += renderSentenceToken(tok, i);
+  });
+  html += `</div>`;
+  html += `<div id="sentence-detail" class="sentence-detail empty">Click a word above to see its morpheme breakdown.</div>`;
+  html += renderLegend();
+  html += `</div>`;
+  return html;
+}
+
+function renderSentenceToken(tok, i) {
+  if (tok.kind === "space") {
+    return `<span class="sentence-token space"> </span>`;
+  }
+  if (tok.kind === "punct") {
+    return `<span class="sentence-token punct">${escapeHTML(tok.surface)}</span>`;
+  }
+  // Word: render compact (surface + split-view underneath, oov dimmed)
+  const a = tok.analysis;
+  const oovClass = (a && a.oov) ? " oov" : "";
+  const split = a ? a.split : tok.surface;
+  return `
+    <span class="sentence-token word${oovClass}" data-i="${i}">
+      <span class="word-inner">
+        <span class="surf">${escapeHTML(tok.surface)}</span>
+        <span class="split">${escapeHTML(split)}</span>
+      </span>
+    </span>
+  `;
+}
+
+function wireSentenceClicks() {
+  document.querySelectorAll(".sentence-token.word").forEach(el => {
+    el.addEventListener("click", () => {
+      // Select visually
+      document.querySelectorAll(".sentence-token.word.selected")
+        .forEach(s => s.classList.remove("selected"));
+      el.classList.add("selected");
+      // Look up the analysis and render detail
+      const i = parseInt(el.dataset.i, 10);
+      const tok = lastSentenceData.tokens[i];
+      if (!tok || !tok.analysis) return;
+      $("sentence-detail").className = "sentence-detail";
+      $("sentence-detail").innerHTML = renderInlineDetail(tok.analysis);
+    });
+  });
+}
+
+function renderInlineDetail(a) {
+  if (!a.parsed) {
+    return `<div class="error">Could not parse this word.</div>`;
+  }
+  let html = "";
+  html += renderMorphemeChips(a.morphemes);
+  html += renderMeta(a);
+  html += renderFeatures(a.features);
+  if (a.alternatives && a.alternatives.length > 0) {
+    html += renderAlternatives(a.alternatives);
+  }
+  return html;
+}
+
+/* ====================================================================
+   Shared rendering helpers
+==================================================================== */
+
+// Map a suffix id to its category for color coding. We don't have the
+// inventory.json client-side, so use a static map mirroring its
+// `category` fields. Falls back to "OTHER" for unknown.
+const CATEGORY = {
+  // Voice (inflectional)
+  "CAUS": "VOICE", "PASS": "VOICE",
+  // Derivational V→V
+  "CAUS_DERIV": "DERIV_V_V", "PASS_DERIV": "DERIV_V_V",
+  // Negation
+  "NEG": "NEG",
+  // Potential
+  "POT": "POT",
+  // TAM (z-type follow)
+  "PROG": "TAM", "FUT": "TAM", "AOR": "TAM", "EVID": "TAM", "NEC": "TAM",
+  // TAM (k-type follow)
+  "PAST": "TAM", "COND": "COND",
+  // Past copula (compound tense)
+  "PAST_COP": "PAST_COP",
+  // Imperative
+  "IMP_2PL": "IMP", "IMP_3SG": "IMP",
+  // Optative
+  "OPT": "OPT", "OPT_1SG": "OPT_AGR", "OPT_1PL": "OPT_AGR",
+  // Converbs & participles
+  "ARAK": "CONV", "IP": "CONV", "INCE": "CONV",
+  "AN": "PART", "DHK": "PART", "FUT_PART": "FUT_PART",
+  // Agreement
+  "1SG_Z": "AGR_Z", "2SG_Z": "AGR_Z", "1PL_Z": "AGR_Z", "2PL_Z": "AGR_Z",
+  "1SG_K": "AGR_K", "2SG_K": "AGR_K", "1PL_K": "AGR_K", "2PL_K": "AGR_K",
+  "3PL": "AGR_PL",
+  // Case
+  "NOM": "CASE", "ACC": "CASE", "DAT": "CASE", "LOC": "CASE",
+  "ABL": "CASE", "GEN": "CASE", "INS": "CASE", "EQU": "CASE",
+  // Possession & number
+  "POSS_1SG": "POSS", "POSS_2SG": "POSS", "POSS_3SG": "POSS",
+  "POSS_1PL": "POSS", "POSS_2PL": "POSS", "POSS_3PL": "POSS",
+  "PLUR": "PLUR", "NUM": "NUM",
+  // Copular (finite copular suffixes on nominal/adj/case-marked stems)
+  "COP_EVID": "COP", "COP_DHR": "COP", "COP_COND": "COP",
+  // Derivation (V→V, ADJ→V, N→V verbalizers)
+  "VBZ_LA":  "DERIV", "VBZ_LAS": "DERIV", "VBZ_LAN": "DERIV",
+  "VBZ_A":   "DERIV", "VBZ_AL":  "DERIV", "VBZ_AR":  "DERIV", "VBZ_HMSA": "DERIV",
+  "VBZ_DA":  "DERIV",
+  // Derivation (N→ADJ, V→ADJ adjectivizers)
+  "ADJZ_LH": "DERIV", "ADJZ_SHZ": "DERIV", "ADJZ_MSH": "DERIV", "ADJ_LH": "DERIV",
+  "ADJZ_MTRK": "DERIV", "ADJZ_CHL": "DERIV",
+  "ADJ_GHN": "DERIV", "ADJ_HK":   "DERIV", "ADJ_GAN": "DERIV", "ADJ_MAZ": "DERIV",
+  // Derivation (V→ADJ agent, V→N nominalizers, N→N)
+  "AGENT": "DERIV",
+  "NMZ_INF": "DERIV", "NMZ_GER": "DERIV", "NMZ_HS": "DERIV",
+  "NMZ_HM":  "DERIV", "NMZ_MAN": "DERIV", "NMZ_LHK": "DERIV",
+  "NMZ_HNTI": "DERIV", "NMZ_MACA": "DERIV", "NMZ_DHKCE": "DERIV",
+  "NDER_CH": "DERIV", "NDER_LHK": "DERIV", "NDER_CHK": "DERIV", "NDER_DAS": "DERIV",
+  "NDER_CAGIZ": "DERIV", "NDER_GHL": "DERIV",
+  // Derivation (adverbial)
+  "ADV_CA": "ADV_DERIV", "CASINA": "ADV_DERIV", "REL_KI": "REL",
+  // Verb modifier
+  "VER": "VERB_MOD", "RECP": "VERB_MOD",
+  "VMOD_GEL": "VERB_MOD", "VMOD_DUR": "VERB_MOD", "VMOD_YAZ": "VERB_MOD",
+};
+
+function renderMorphemeChips(morphemes) {
+  let html = `<div class="morphs">`;
+  morphemes.forEach((m, idx) => {
+    const isRoot = m.is_root;
+    const cat = isRoot ? "" : (CATEGORY[m.id] || "OTHER");
+    const cls = "morph " + (isRoot ? "root" : `cat-${cat}`);
+    const chunk = m.chunk || "∅";
+    const chunkCls = m.chunk ? "chunk" : "chunk empty";
+    const label = isRoot ? "ROOT" : m.id;
+    const featsAttr = formatFeatsForTooltip(m.feats);
+    html += `
+      <div class="${cls}" data-feats="${escapeHTML(featsAttr)}">
+        <div class="stripe"></div>
+        <div class="body">
+          <span class="${chunkCls}">${escapeHTML(chunk)}</span>
+          <span class="id">${escapeHTML(label)}</span>
+        </div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function formatFeatsForTooltip(feats) {
+  if (!feats || Object.keys(feats).length === 0) return "(no features emitted)";
+  return Object.entries(feats).map(([k, v]) => `${k}=${v}`).join(", ");
+}
+
+function renderMeta(data) {
+  const oovPill = data.oov ? `<span class="pill oov">OOV root</span>` : "";
+  return `
+    <div class="meta">
+      <span><b>Root:</b> ${escapeHTML(data.root)}</span>
+      <span><b>Class:</b> <span class="pill">${escapeHTML(data.root_class)}</span></span>
+      ${data.final_class !== data.root_class
+        ? `<span><b>Final class:</b> <span class="pill">${escapeHTML(data.final_class)}</span></span>`
+        : ""}
+      ${oovPill}
+      <span><b>Score:</b> ${data.score.toFixed(2)}</span>
+    </div>
+  `;
+}
+
+function renderFeatures(feats) {
+  const keys = Object.keys(feats || {});
+  if (keys.length === 0) {
+    return `<h2>Features</h2><div style="color: #888;">(none)</div>`;
+  }
+  let html = `<h2>Features</h2><div class="features">`;
+  keys.forEach(k => {
+    html += `<div class="k">${escapeHTML(k)}</div><div class="v">${escapeHTML(feats[k])}</div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function renderAlternatives(alts) {
+  let html = `<details><summary>Alternative analyses (${alts.length})</summary><div class="alts">`;
+  alts.forEach(a => {
+    html += `<div class="alt">`;
+    html += renderMorphemeChips(a.morphemes);
+    html += `<div class="alt-meta">root: <b>${escapeHTML(a.root)}</b> (${a.root_class})  ·  score ${a.score.toFixed(2)}</div>`;
+    html += `</div>`;
+  });
+  html += `</div></details>`;
+  return html;
+}
+
+function renderLegend() {
+  return `
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#888"></span>Root</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#c0392b"></span>Voice</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#e67e22"></span>V→V derivation</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#d35400"></span>Negation</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#6c3baa"></span>Tense/aspect/copula</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#16a085"></span>Mood (imp/opt)</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#1f8794"></span>Participle/converb</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#2980b9"></span>Agreement</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#27ae60"></span>Case/poss</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#b8860b"></span>Derivation / -kİ / "as if"</span>
+    </div>
+  `;
+}
+
+function escapeHTML(s) {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Focus the word input on load.
+window.addEventListener("load", () => {
+  $("word-input").focus();
+});
+</script>
+
+</body>
+</html>

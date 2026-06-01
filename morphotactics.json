@@ -1,0 +1,184 @@
+{
+  "version": "0.1",
+  "_comment": "Turkish morphotactic graph. States are positions in the agglutinative chain; transitions are suffixes that move between them. The `from` array on a transition allows the same suffix to be reachable from multiple states.",
+
+  "start_states": {
+    "NOUN": "NOUN_ROOT",
+    "VERB": "VERB_ROOT",
+    "ADJ":  "ADJ_ROOT"
+  },
+
+  "states": [
+    {"id": "NOUN_ROOT",  "accept": true,  "_note": "bare noun = nominative singular"},
+    {"id": "NOUN_NUM",   "accept": true,  "_note": "after plural"},
+    {"id": "NOUN_POSS",  "accept": true,  "_note": "after possessive"},
+    {"id": "NOUN_CASE",  "accept": true,  "_note": "after case marker (terminal nominal)"},
+
+    {"id": "VERB_ROOT",  "accept": true,  "_note": "bare root = imperative 2sg"},
+    {"id": "VERB_VOICE", "accept": false, "_note": "after voice morpheme"},
+    {"id": "VERB_POT",   "accept": false, "_note": "after potential/ability (-Abil)"},
+    {"id": "VERB_NEG",   "accept": false, "_note": "after negation"},
+    {"id": "VERB_OPT",   "accept": true,  "_note": "after optative -(y)A; accepting because bare OPT = 3sg"},
+    {"id": "VERB_TAM_K", "accept": true,  "_note": "after TAM that takes k-type agr (PAST, COND); accepting because 3sg has zero ending"},
+    {"id": "VERB_TAM_Z", "accept": true,  "_note": "after TAM that takes z-type agr (PROG, FUT, AOR, EVID); 3sg has zero ending"},
+    {"id": "VERB_AGR",   "accept": true,  "_note": "after person/number agreement (terminal verbal)"},
+
+    {"id": "ADJ_ROOT",   "accept": true,  "_note": "bare adjective"},
+
+    {"id": "COP_FIN",    "accept": true,  "_note": "after a finite copular suffix (COP_EVID); accepting because 3sg copula is zero"},
+    {"id": "ADV_TERM",   "accept": true,  "_note": "after a terminal adverbial-deriving suffix (CASINA)"}
+  ],
+
+  "transitions": [
+
+    {"_section": "Nominal track. ADJ_ROOT is included as a 'from' for PLUR/POSS/CASE because Turkish adjectives substantively take the full nominal paradigm (kötüler 'the bad ones', hayatsızların 'of those without life')."},
+    {"via": "PLUR",     "from": ["NOUN_ROOT", "ADJ_ROOT"],                     "to": "NOUN_NUM"},
+
+    {"via": "POSS_1SG", "from": ["NOUN_ROOT", "NOUN_NUM", "ADJ_ROOT"],         "to": "NOUN_POSS"},
+    {"via": "POSS_2SG", "from": ["NOUN_ROOT", "NOUN_NUM", "ADJ_ROOT"],         "to": "NOUN_POSS"},
+    {"via": "POSS_3SG", "from": ["NOUN_ROOT", "NOUN_NUM", "ADJ_ROOT"],         "to": "NOUN_POSS"},
+    {"via": "POSS_1PL", "from": ["NOUN_ROOT", "NOUN_NUM", "ADJ_ROOT"],         "to": "NOUN_POSS"},
+    {"via": "POSS_2PL", "from": ["NOUN_ROOT", "NOUN_NUM", "ADJ_ROOT"],         "to": "NOUN_POSS"},
+    {"via": "POSS_3PL", "from": ["NOUN_ROOT", "NOUN_NUM", "ADJ_ROOT"],         "to": "NOUN_POSS"},
+
+    {"via": "NOM",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+    {"via": "ACC",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+    {"via": "DAT",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+    {"via": "LOC",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+    {"via": "ABL",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+    {"via": "GEN",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+    {"via": "INS",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+
+    {"_section": "Verbal track — voice and negation"},
+    {"via": "CAUS",        "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "VERB_VOICE"},
+    {"via": "PASS",        "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "VERB_VOICE"},
+    {"via": "NEG",         "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT"],       "to": "VERB_NEG"},
+
+    {"_section": "Verbal track — derivational V→V (CAUS_DERIV, PASS_DERIV). Loops back to VERB_ROOT so all subsequent inflection works as on a fresh root. Gated by lex flags so only applies to verbs whose lex entry licenses it."},
+    {"via": "CAUS_DERIV",  "from": ["VERB_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "PASS_DERIV",  "from": ["VERB_ROOT"],                                 "to": "VERB_ROOT"},
+
+    {"_section": "Verbal track — potential (ability)"},
+    {"via": "POT",      "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "VERB_POT"},
+
+    {"_section": "Verbal track — TAM markers, split by which agreement set they take"},
+    {"via": "PAST",     "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "VERB_TAM_K"},
+    {"via": "COND",     "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG", "VERB_TAM_Z"], "to": "VERB_TAM_K"},
+    {"via": "PROG",     "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "VERB_TAM_Z"},
+    {"via": "FUT",      "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "VERB_TAM_Z"},
+    {"via": "AOR",      "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "VERB_TAM_Z"},
+    {"via": "EVID",     "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "VERB_TAM_Z"},
+
+    {"_section": "Verbal track — past copula (compound tense)"},
+    {"_section": "Verbal track — past copula (compound tense). Fires from a TAM-marked verb (geliyordu = 'was coming'), from VERB_AGR for the post-3PL pattern (oynuyorlardı), AND from any nominal/adj/case-marked stem for the zero-copula past (kitaptım 'I was a book', evdeydi 'was at home', mıydı 'was it?'). After PAST_COP we go to VERB_TAM_K which takes k-type agreement."},
+    {"via": "PAST_COP", "from": ["VERB_TAM_Z", "VERB_AGR", "NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT"], "to": "VERB_TAM_K"},
+
+    {"_section": "Verbal track — imperative"},
+    {"via": "IMP_2PL",  "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "VERB_AGR"},
+    {"via": "IMP_3SG",  "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "VERB_AGR"},
+
+    {"_section": "Verbal track — optative (-(y)A with its own 1sg/1pl agreement; bare = 3sg)"},
+    {"via": "OPT",      "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "VERB_OPT"},
+    {"via": "OPT_1SG",  "from": ["VERB_OPT"],                                  "to": "VERB_AGR"},
+    {"via": "OPT_1PL",  "from": ["VERB_OPT"],                                  "to": "VERB_AGR"},
+
+    {"_section": "Verbal track — converbs and participles (terminal)"},
+    {"via": "ARAK",     "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "VERB_AGR"},
+    {"via": "IP",       "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "VERB_AGR"},
+    {"via": "AN",       "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "VERB_AGR"},
+
+    {"_section": "Verbal track — person agreement (k-type after PAST/COND)"},
+    {"via": "1SG_K",    "from": ["VERB_TAM_K"],                                "to": "VERB_AGR"},
+    {"via": "2SG_K",    "from": ["VERB_TAM_K"],                                "to": "VERB_AGR"},
+    {"via": "1PL_K",    "from": ["VERB_TAM_K"],                                "to": "VERB_AGR"},
+    {"via": "2PL_K",    "from": ["VERB_TAM_K"],                                "to": "VERB_AGR"},
+
+    {"_section": "Verbal track — person agreement (z-type after PROG/FUT/AOR/EVID/NEC). Also fires directly from nominal stems for the zero-copula (iyiyim 'I am good', öğretmenim 'I am a teacher'). After a non-verbal stem the agreement IS the copula."},
+    {"via": "1SG_Z",    "from": ["VERB_TAM_Z", "NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT"], "to": "VERB_AGR"},
+    {"via": "2SG_Z",    "from": ["VERB_TAM_Z", "NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT"], "to": "VERB_AGR"},
+    {"via": "1PL_Z",    "from": ["VERB_TAM_Z", "NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT"], "to": "VERB_AGR"},
+    {"via": "2PL_Z",    "from": ["VERB_TAM_Z", "NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT"], "to": "VERB_AGR"},
+
+    {"_section": "Verbal track — person agreement (shared)"},
+    {"via": "3PL",      "from": ["VERB_TAM_K", "VERB_TAM_Z"],                  "to": "VERB_AGR"},
+
+    {"_section": "Derivational — Verbalizing (X → VERB). All loop into the verbal track."},
+    {"via": "VBZ_LA",   "from": ["NOUN_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "VBZ_LAN",  "from": ["NOUN_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "VBZ_A",    "from": ["NOUN_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "VBZ_LAS",  "from": ["ADJ_ROOT", "NOUN_ROOT"],                     "to": "VERB_ROOT"},
+    {"via": "VBZ_AL",   "from": ["ADJ_ROOT"],                                  "to": "VERB_ROOT"},
+    {"via": "VBZ_AR",   "from": ["ADJ_ROOT"],                                  "to": "VERB_ROOT"},
+    {"via": "VBZ_HMSA", "from": ["NOUN_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "VBZ_DA",   "from": ["NOUN_ROOT"],                                 "to": "VERB_ROOT"},
+
+    {"_section": "Derivational — Adjectivizing (X → ADJ)"},
+    {"via": "ADJZ_LH",  "from": ["NOUN_ROOT"],                                 "to": "ADJ_ROOT"},
+    {"via": "ADJZ_SHZ", "from": ["NOUN_ROOT"],                                 "to": "ADJ_ROOT"},
+    {"via": "ADJZ_MSH", "from": ["NOUN_ROOT"],                                 "to": "ADJ_ROOT"},
+    {"via": "ADJZ_MTRK","from": ["ADJ_ROOT"],                                  "to": "ADJ_ROOT"},
+    {"via": "ADJZ_CHL", "from": ["NOUN_ROOT"],                                 "to": "ADJ_ROOT"},
+    {"via": "ADJ_GHN",  "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "ADJ_ROOT"},
+    {"via": "ADJ_HK",   "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "ADJ_ROOT"},
+    {"via": "ADJ_GAN",  "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "ADJ_ROOT"},
+    {"via": "ADJ_MAZ",  "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "ADJ_ROOT"},
+    {"via": "AGENT",    "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "ADJ_ROOT"},
+
+    {"_section": "Derivational — Nominalizing N → N"},
+    {"via": "NDER_CH",  "from": ["NOUN_ROOT"],                                 "to": "NOUN_ROOT"},
+    {"via": "NDER_LHK", "from": ["NOUN_ROOT", "ADJ_ROOT"],                     "to": "NOUN_ROOT"},
+    {"via": "NDER_CHK", "from": ["NOUN_ROOT"],                                 "to": "NOUN_ROOT"},
+    {"via": "NDER_CAGIZ","from":["NOUN_ROOT"],                                 "to": "NOUN_ROOT"},
+    {"via": "NDER_DAS", "from": ["NOUN_ROOT"],                                 "to": "NOUN_ROOT"},
+    {"via": "NDER_GHL", "from": ["NOUN_POSS"],                                 "to": "NOUN_ROOT"},
+
+    {"_section": "Verb modifier — quick aspect (-(y)Hver), reciprocal -(H)ş, plus rare V→V modifiers VMOD_GEL/DUR/YAZ. All loop back to VERB_ROOT so further inflection works as normal."},
+    {"via": "VER",      "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "VERB_ROOT"},
+    {"via": "RECP",     "from": ["VERB_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "VMOD_GEL", "from": ["VERB_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "VMOD_DUR", "from": ["VERB_ROOT"],                                 "to": "VERB_ROOT"},
+    {"via": "VMOD_YAZ", "from": ["VERB_ROOT"],                                 "to": "VERB_ROOT"},
+
+    {"_section": "Derivational — V to N (verbal noun, infinitive, action noun, instance/manner)"},
+    {"via": "NMZ_INF",  "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "NOUN_ROOT"},
+    {"via": "NMZ_GER",  "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "NOUN_ROOT"},
+    {"via": "NMZ_HS",   "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "NOUN_ROOT"},
+    {"via": "NMZ_HM",   "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "NOUN_ROOT"},
+    {"via": "NMZ_MAN",  "from": ["VERB_ROOT"],                                 "to": "NOUN_ROOT"},
+    {"via": "NMZ_HNTI", "from": ["VERB_ROOT", "VERB_VOICE"],                   "to": "NOUN_ROOT"},
+    {"via": "NMZ_MACA", "from": ["VERB_ROOT"],                                 "to": "NOUN_ROOT"},
+    {"via": "NMZ_DHKCE","from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "NOUN_ROOT"},
+    {"via": "DHK",      "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "NOUN_ROOT"},
+    {"via": "FUT_PART", "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "NOUN_ROOT"},
+
+    {"_section": "Derivational — Adverbializing -CA. Despite the same template as the equative case -CA, this one attaches to ADJ_ROOT and yields an adverbial-flavored ADJ that's terminal (sticks around — won't reroute back through nominal). To avoid spurious decompositions we loop ADV_CA to ADJ_ROOT but suppress further chained inflection."},
+    {"via": "ADV_CA",   "from": ["ADJ_ROOT"],                                  "to": "ADJ_ROOT"},
+
+    {"_section": "Inflectional necessitative mood (-mAlH 'must'), leads to k-type agreement (gelmeliyim, gelmelisin...)"},
+    {"via": "NEC",      "from": ["VERB_ROOT", "VERB_VOICE", "VERB_POT", "VERB_NEG"], "to": "VERB_TAM_Z"},
+
+    {"_section": "Case: equative -CA on nominal stems ('like X', 'in the X way'). Distinct from ADV_CA which attaches to adjectives."},
+    {"via": "EQU",      "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "ADJ_ROOT"], "to": "NOUN_CASE"},
+
+    {"_section": "Copular suffixes: -(y)mHş etc. can attach to nominal stems (gives copular evidential 'apparently is') and also to TAM-marked verbs (gives the compound evidential 'apparently does/did'). Per the trick-word chain: ...NOUN_CASE → COP_EVID → 2PL_Z → CASINA → terminal. Per gelmezmiş: VERB_TAM_Z → COP_EVID → 2PL_Z (etc) → terminal."},
+    {"via": "COP_EVID", "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT", "VERB_AGR", "VERB_TAM_Z", "VERB_TAM_K"], "to": "COP_FIN"},
+    {"via": "COP_DHR",  "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT", "VERB_AGR", "VERB_TAM_Z", "VERB_TAM_K"], "to": "COP_FIN"},
+    {"_section": "COP_COND (-(y)sA conditional copula) is morphologically a k-agreement-taking suffix (mıysam 'if I am [whether?]', evdeysem 'if I am at home'). Route it to VERB_TAM_K so k-type agreement attaches, not z-type. VERB_TAM_K is accepting (3sg = bare), so miyse parses cleanly too."},
+    {"via": "COP_COND", "from": ["NOUN_ROOT", "NOUN_NUM", "NOUN_POSS", "NOUN_CASE", "ADJ_ROOT", "VERB_AGR", "VERB_TAM_Z", "VERB_TAM_K"], "to": "VERB_TAM_K"},
+    {"via": "1SG_Z",    "from": ["COP_FIN"],                                   "to": "VERB_AGR"},
+    {"via": "2SG_Z",    "from": ["COP_FIN"],                                   "to": "VERB_AGR"},
+    {"via": "1PL_Z",    "from": ["COP_FIN"],                                   "to": "VERB_AGR"},
+    {"via": "2PL_Z",    "from": ["COP_FIN"],                                   "to": "VERB_AGR"},
+    {"via": "3PL",      "from": ["COP_FIN"],                                   "to": "VERB_AGR"},
+    {"via": "CASINA",   "from": ["COP_FIN", "VERB_AGR"],                       "to": "ADV_TERM"},
+
+    {"_section": "Converb -(y)HncA 'when X-ing' / 'as soon as X-ing': terminal, attaches to verbal stems"},
+    {"via": "INCE",     "from": ["VERB_ROOT", "VERB_VOICE", "VERB_NEG"],       "to": "VERB_AGR"},
+
+    {"_section": "Relational -kİ: attaches to LOC and GEN case-marked stems and produces an adjectival stem (which can then take nominal inflection again, as in 'hayatsızlarınkinde'). The result ADJ_ROOT can re-enter the nominal track via the ADJ_ROOT transitions added above."},
+    {"via": "REL_KI",   "from": ["NOUN_CASE"],                                 "to": "ADJ_ROOT"},
+
+    {"_section": "Verb modifier — POT can follow NEG (double-POT for ability+negation chains)"},
+    {"via": "POT",      "from": ["VERB_NEG"],                                  "to": "VERB_POT"}
+  ]
+}
