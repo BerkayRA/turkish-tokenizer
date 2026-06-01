@@ -33,8 +33,8 @@ class TestTokenizerAPI(unittest.TestCase):
 
     def test_required_keys_present(self):
         r = self.tok.tokenize("geldim")
-        for key in ("surface", "parsed", "root", "root_class", "final_class",
-                    "morphemes", "split", "tagged", "features",
+        for key in ("surface", "parsed", "root", "lemma", "root_class",
+                    "final_class", "morphemes", "split", "tagged", "features",
                     "emitted_features", "score", "oov"):
             self.assertIn(key, r, f"missing key: {key}")
 
@@ -102,6 +102,16 @@ class TestTokenizerAPI(unittest.TestCase):
         for alt in r.get("alternatives", []):
             self.assertFalse(alt["oov"],
                              f"OOV alt should be excluded: {alt['root']}")
+
+    def test_lemma_property(self):
+        # lemma is a downstream-convenience alias for root.
+        self.assertEqual(self.tok.tokenize("kitabımı")["lemma"], "kitap")
+        self.assertEqual(self.tok.tokenize("geldim")["lemma"], "gel")
+        self.assertEqual(self.tok.tokenize("kitap")["lemma"], "kitap")
+        # Alternatives carry lemma too.
+        r = self.tok.tokenize("çıkardı")
+        for alt in r.get("alternatives", []):
+            self.assertEqual(alt["lemma"], alt["root"])
 
     def test_module_level_tokenize(self):
         # The lazy module-level function should work

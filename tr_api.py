@@ -14,6 +14,7 @@ Typical usage:
     # result = {
     #   "surface": "kitabımı",
     #   "root": "kitap",
+    #   "lemma": "kitap",              # alias for root (downstream convenience)
     #   "root_class": "NOUN",
     #   "final_class": "NOUN",
     #   "split": "kitab-ım-ı",
@@ -197,6 +198,9 @@ class Tokenizer:
             })
         return {
             "root":             a.root,
+            "lemma":            a.root,   # alias: the bare dictionary form,
+                                          # convenient for downstream callers
+                                          # that only want the lemma string.
             "root_class":       a.root_class,
             "final_class":      a.final_class,
             "morphemes":        morphemes,

@@ -1,0 +1,5 @@
+# External data (cloned, not part of the project source)
+UD_Turkish-IMST/
+tdk_words.json
+__pycache__/
+*.pyc
