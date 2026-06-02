@@ -70,7 +70,16 @@ tok.tokenize_text("Yarın gelecekmisin?")
 # tokens: "Yarın" | " " | "gelecek" | "misin" | "?"
 ```
 
-Note that `gelecekmisin` was split into `gelecek` + `misin`. The interrogative particle *mi / mı / mu / mü* is officially written with a space but is routinely attached in casual writing; the pre-tokenizer (see `tr_pretokenize.py`) splits it off so each piece analyses correctly and the output matches UD's tokenization. The split is conservative — vowel-harmony aware and only applied when the whole word has no clean in-lexicon reading — so ordinary words ending in *-mi/-mu* (`resmi`, `ölümü`, `kalemi`) are left intact. Disable it with `TokenizerConfig(split_clitics=False)`.
+Note that `gelecekmisin` was split into `gelecek` + `misin`. The interrogative particle *mi / mı / mu / mü* is officially written with a space but is routinely attached in casual writing; the pre-tokenizer (see `tr_pretokenize.py`) splits it off so each piece analyses correctly and the output matches UD's tokenization. It is vowel-harmony aware (so it splits at the right *m*) and works in two regimes:
+
+- **Particle + agreement** (`hastamısın`, `büyükmüsün`, `güzelmiydi`, `doktormudur`) is an unambiguous question and is **always** split, even when the whole word also has a clean in-lexicon parse.
+- A **bare particle** (`gelecekmi`, `kitapmı`) is split only when the whole word has no clean in-lexicon reading, so ordinary words ending in *-mi/-mu* (`resmi`, `ölümü`, `kalemi`) and possessives (`adamım`, `kalemim`) are left intact.
+
+Disable it with `TokenizerConfig(split_clitics=False)`.
+
+### Diacritics
+
+Lookups are circumflex-insensitive: loanword spellings with and without the circumflex resolve to the same lemma (`mekân` = `mekan`, `resmî` = `resmi`, `ilmî` = `ilmi`, `kâr` = `kar`). You can pass either spelling to `tokenize()` / `parse()`.
 
 ## Parsing a word (lower-level)
 

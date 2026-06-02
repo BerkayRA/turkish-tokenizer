@@ -26,10 +26,19 @@ Vowel harmony is enforced on the particle vowel (gelecek -> "mi", okudun
 -> "mu", hasta -> "mı"), which prevents splitting at the wrong "m" inside
 the word ("gelecekmisin" -> gelecek + misin, never gelecekm + isin).
 
-Known limitation: a word whose attached-particle reading collides with a
-valid in-lexicon analysis is left intact (rule 1). For example
-"hastamısın" parses in-lexicon as hasta+POSS_1SG+..., so it is not split.
-Disambiguating that needs sentence context and is out of scope here.
+There are two split regimes:
+
+  - Particle + person/copular agreement (misin, mısın, mıydı, midir,
+    miyim, ...) is an UNAMBIGUOUS attached question and is split even when
+    the whole word also has a clean in-lexicon parse — so "hastamısın" ->
+    hasta + mısın every time. These copular/agreement suffixes never attach
+    to an ordinary noun the way a bare particle's look-alike can, so the
+    override is safe. (Crucially, particle + POSSESSIVE — "mim" = mi+POSS_1SG
+    — is NOT in the agreement whitelist, so a clean word like "adamım" is
+    never mis-split into ada + mım.)
+  - A BARE particle (mi/mı/mu/mü, optionally + possessive) collides with
+    ordinary noun/adjective morphology (resmi, ölümü, kalemi), so it is only
+    split off when the whole word has no clean in-lexicon reading.
 """
 
 from __future__ import annotations
@@ -44,6 +53,16 @@ from tr_phonology import tr_lower, last_vowel
 # suffixes (misin, mısın, musun, miyim, miydi, midir, ...), which the
 # parser already analyses with the particle as the root.
 PARTICLES = frozenset({"mi", "mı", "mu", "mü"})
+
+# Suffix IDs that mark the particle as a predicate carrying person/copular
+# agreement: the z-type person endings plus the copular markers. Their
+# presence in the trailing cluster makes an attached question unambiguous.
+# POSS_* is deliberately excluded — "mim" (mi+POSS_1SG) must NOT count, so
+# that ordinary words like "adamım" are never split.
+COPULAR_AGREEMENT_IDS = frozenset({
+    "1SG_Z", "2SG_Z", "1PL_Z", "2PL_Z", "3PL_Z",
+    "PAST_COP", "COND_COP", "COP_DHR", "COP_EVID",
+})
 
 # High-vowel harmony: the particle vowel is determined by the last vowel
 # of the preceding stem.
@@ -80,15 +99,15 @@ def split_question_clitic(word: str, parser) -> List[str]:
     if len(wl) < _MIN_SPLITTABLE_LEN:
         return [word]
 
-    # Rule 1: a word that already has a clean in-lexicon parse is trusted.
     whole = parser.parse(wl)
-    if whole and not whole[0].oov:
-        return [word]
+    whole_clean = bool(whole) and not whole[0].oov
 
-    # Rules 2 & 3: find an 'm' that starts a harmonising particle cluster
-    # whose head is a real word. Among valid candidates prefer the longest
-    # head (i.e. the shortest particle), which is the conservative split.
-    best_i = None
+    # Find every 'm' that starts a harmonising particle cluster whose head is
+    # a real in-lexicon word. Classify each by whether the cluster carries
+    # person/copular agreement (an unambiguous question) or is a bare
+    # particle (ambiguous with noun morphology).
+    agreement_splits = []
+    bare_splits = []
     for i in range(1, len(wl) - 1):
         if wl[i] != "m":
             continue
@@ -103,9 +122,18 @@ def split_question_clitic(word: str, parser) -> List[str]:
         head_an = parser.parse(head)
         if not head_an or head_an[0].oov:
             continue
-        if best_i is None or i > best_i:
-            best_i = i
+        bare_splits.append(i)
+        tail_suffix_ids = {m.suffix_id for m in tail_an[0].morphemes[1:]}
+        if tail_suffix_ids & COPULAR_AGREEMENT_IDS:
+            agreement_splits.append(i)
 
-    if best_i is None:
-        return [word]
-    return [word[:best_i], word[best_i:]]
+    # Unambiguous attached question (particle + person/copular agreement):
+    # split even over a clean whole-word parse. hastamısın -> hasta + mısın.
+    if agreement_splits:
+        i = max(agreement_splits)
+        return [word[:i], word[i:]]
+    # Bare particle: only split when the whole word has no clean reading.
+    if bare_splits and not whole_clean:
+        i = max(bare_splits)
+        return [word[:i], word[i:]]
+    return [word]

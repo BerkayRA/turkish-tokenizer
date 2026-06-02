@@ -79,10 +79,32 @@ class TestSplitQuestionClitic(unittest.TestCase):
         # 'zzz' is not a word; 'zzzmı' should stay whole.
         self.assertEqual(self.split("zzzmı"), ["zzzmı"])
 
-    def test_in_lex_collision_left_intact(self):
-        """Documented limitation: an attached reading that collides with a
-        clean in-lex parse is left whole (needs sentence context)."""
-        self.assertEqual(self.split("hastamısın"), ["hastamısın"])
+    def test_splits_particle_plus_agreement_over_clean_parse(self):
+        """Particle + person/copular agreement is an unambiguous question and
+        is split even when the whole word has a clean in-lex parse."""
+        cases = {
+            "hastamısın":  ["hasta", "mısın"],
+            "hastamıyım":  ["hasta", "mıyım"],
+            "zenginmiyiz": ["zengin", "miyiz"],
+            "güzelmiydi":  ["güzel", "miydi"],
+            "doktormudur": ["doktor", "mudur"],
+        }
+        for word, expected in cases.items():
+            with self.subTest(word=word):
+                self.assertEqual(self.split(word), expected)
+
+    def test_evidential_not_split(self):
+        """-mış/-miş + agreement (okumuşsun) must NOT be read as a particle."""
+        for word in ("okumuşsun", "görmüşsün", "tanımışım", "gelmişsin"):
+            with self.subTest(word=word):
+                self.assertEqual(self.split(word), [word])
+
+    def test_possessive_lookalike_not_split(self):
+        """particle+POSSESSIVE (mim = mi+POSS_1SG) is excluded from the
+        agreement whitelist, so 'adamım' is never split into ada + mım."""
+        for word in ("adamım", "kalemim", "selamım", "kalemin"):
+            with self.subTest(word=word):
+                self.assertEqual(self.split(word), [word])
 
 
 class TestTokenizerClitics(unittest.TestCase):
