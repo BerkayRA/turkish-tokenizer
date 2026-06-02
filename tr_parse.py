@@ -41,7 +41,7 @@ from tr_phonology  import (
     BACK_VOWELS, FRONT_VOWELS, HIGH_VOWELS, LOW_VOWELS,
     ROUNDED_VOWELS, UNROUNDED_VOWELS, VOICELESS_CONSONANTS, VOWELS,
     HARDEN, SOFTEN,
-    is_vowel, is_voiceless, last_vowel, tr_lower,
+    is_vowel, is_voiceless, last_vowel, tr_lower, fold_diacritics,
 )
 from tr_rules import get_expand
 
@@ -555,6 +555,11 @@ class Parser:
         # case-folding and apostrophe stripping erase them.
         is_title = bool(word) and word[0] != tr_lower(word[0])
         word = tr_lower(word)
+        # Fold circumflex vowels (mekân -> mekan) so diacritic spellings are
+        # accepted and so the phonology layer, which only knows the plain
+        # vowels, computes harmony correctly. Length-preserving, so the
+        # apostrophe/title-case offsets computed below still hold.
+        word = fold_diacritics(word)
         # Turkish uses apostrophe to separate proper-noun stems from their
         # inflectional suffixes ("Muammer'in", "Parkı'ndan"). The apostrophe
         # is an explicit morpheme boundary and zero-width morphologically.

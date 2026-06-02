@@ -94,6 +94,26 @@ def tr_upper(s: str) -> str:
     return s.translate(_TR_UPPER_MAP)
 
 
+# Circumflex vowels (â, î, û — and the rarer ê, ô) appear in Turkish
+# loanwords (mekân, resmî, kâr, ilmî) and mark either a long vowel or the
+# palatalisation of a preceding k/g/l. In modern usage the circumflex is
+# very often dropped (mekan, resmi, kar), so the two spellings must be
+# treated as the same word for lookup. We fold the circumflex to its plain
+# counterpart everywhere a surface form is matched. The map is
+# length-preserving, so it never shifts character offsets.
+_FOLD_DIACRITICS_MAP = str.maketrans({
+    "â": "a", "î": "i", "û": "u", "ê": "e", "ô": "o",
+    "Â": "A", "Î": "İ", "Û": "U", "Ê": "E", "Ô": "O",
+})
+
+
+def fold_diacritics(s: str) -> str:
+    """Fold Turkish circumflex vowels to their plain counterparts so that
+    diacritic and non-diacritic spellings match: mekân == mekan,
+    resmî == resmi, kâr == kar. Length-preserving."""
+    return s.translate(_FOLD_DIACRITICS_MAP)
+
+
 # -----------------------------------------------------------------------------
 # Character classification
 # -----------------------------------------------------------------------------

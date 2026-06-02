@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from tr_phonology import SOFTEN as SOFTEN_MAP
+from tr_phonology import fold_diacritics
 
 
 @dataclass(frozen=True)
@@ -98,10 +99,16 @@ class Lexicon:
             # lexicon variant; the parser handles it via the suffix rule
             # mechanism instead (see PROG's expand rule).
 
+            # Index every form under its circumflex-folded key so that
+            # diacritic and plain spellings collide (mekân/mekan, ilmî/ilmi).
+            # The canonical Root.form is preserved unchanged for output; only
+            # the lookup key is folded. Folding is length-preserving, so the
+            # prefix length the parser sees still lines up with the surface.
             for surf in forms:
-                self._by_form.setdefault(surf, []).append(r)
+                key = fold_diacritics(surf)
+                self._by_form.setdefault(key, []).append(r)
                 node = self._trie
-                for ch in surf:
+                for ch in key:
                     node = node.children.setdefault(ch, _TrieNode())
                 node.roots.append((r, surf))
 
@@ -109,11 +116,14 @@ class Lexicon:
         return len(self._roots)
 
     def __contains__(self, form: str) -> bool:
-        return form in self._by_form
+        return fold_diacritics(form) in self._by_form
 
     def get(self, form: str) -> List[Root]:
-        """All Roots with the given (canonical or variant) surface form."""
-        return list(self._by_form.get(form, []))
+        """All Roots with the given (canonical or variant) surface form.
+
+        Diacritic-insensitive: a query is matched on its circumflex-folded
+        key, so get("mekan") and get("mekân") return the same roots."""
+        return list(self._by_form.get(fold_diacritics(form), []))
 
     def prefix_match(self, word: str) -> List[tuple]:
         """Return all (Root, prefix_used, prefix_len) where the surface
@@ -125,12 +135,16 @@ class Lexicon:
         """
         results = []
         node = self._trie
-        for i, ch in enumerate(word, start=1):
+        # Walk the trie on the circumflex-folded word so diacritic spellings
+        # match, but report the prefix taken from the ORIGINAL word so the
+        # morpheme chunk reflects what was actually given.
+        folded = fold_diacritics(word)
+        for i, ch in enumerate(folded, start=1):
             if ch not in node.children:
                 break
             node = node.children[ch]
-            for (root, surf) in node.roots:
-                results.append((root, surf, i))
+            for (root, _surf) in node.roots:
+                results.append((root, word[:i], i))
         return results
 
     def all_roots(self) -> List[Root]:
