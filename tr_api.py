@@ -46,6 +46,8 @@ from tr_morphotactics import load_graph
 from tr_lexicon       import load_lexicon
 from tr_parse         import Parser, ParseConfig, Analysis
 from tr_pretokenize   import split_question_clitic
+from tr_phonology      import fold_diacritics
+from tr_fuzzy          import FuzzyIndex
 
 
 HERE = Path(__file__).parent
@@ -73,6 +75,12 @@ class TokenizerConfig:
     # (gelecekmisin -> gelecek + misin) into separate tokens before
     # analysing. See tr_pretokenize for the (conservative) split rule.
     split_clitics:       bool = True
+    # When True, an out-of-vocabulary word gets a "suggestions" list of
+    # near in-lexicon corrections (typo / spelling help) via a BK-tree over
+    # the root lexicon. The index is built lazily on first use.
+    suggest_on_oov:      bool = True
+    suggestion_max_distance: int = 2      # max edit distance for suggestions
+    max_suggestions:     int = 3          # cap on suggestions returned
 
 
 class Tokenizer:
@@ -91,6 +99,41 @@ class Tokenizer:
         pc_all = ParseConfig(**{**pc_top.__dict__, "return_all": True})
         self._parser_top = Parser(self._lex, self._inv, self._graph, pc_top)
         self._parser_all = Parser(self._lex, self._inv, self._graph, pc_all)
+        # Fuzzy index over root forms, built lazily on the first suggestion
+        # request (so tokenizing never pays for it unless OOV help is used).
+        self._fuzzy: Optional[FuzzyIndex] = None
+
+    def _fuzzy_index(self) -> FuzzyIndex:
+        """Lazily build (and cache) the BK-tree over root forms. Keyed on
+        circumflex-folded forms so suggestions are diacritic-insensitive,
+        keeping the highest frequency per folded key."""
+        if self._fuzzy is None:
+            terms: Dict[str, int] = {}
+            for root in self._lex.all_roots():
+                key = fold_diacritics(root.form)
+                if len(key) < 2:
+                    continue
+                if root.frequency > terms.get(key, -1):
+                    terms[key] = root.frequency
+            self._fuzzy = FuzzyIndex(terms)
+        return self._fuzzy
+
+    def suggest(self, word: str) -> List[Dict[str, Any]]:
+        """Near in-lexicon root corrections for `word`, best first.
+
+        Returns a list of {"word", "distance"} dicts. The edit-distance
+        ceiling is tightened for short words so a 3-4 letter word is not
+        matched against everything two edits away.
+        """
+        word = fold_diacritics((word or "").strip().lower())
+        if len(word) < 2:
+            return []
+        # Short words tolerate fewer edits (a 2-edit window on a 4-letter
+        # word matches almost anything).
+        max_d = 1 if len(word) <= 4 else self.config.suggestion_max_distance
+        hits = self._fuzzy_index().nearest(
+            word, max_distance=max_d, limit=self.config.max_suggestions)
+        return [{"word": term, "distance": dist} for term, dist, _freq in hits]
 
     def tokenize(self, word: str) -> Dict[str, Any]:
         """Tokenize a single word.
@@ -111,12 +154,20 @@ class Tokenizer:
                   else self._parser_top)
         analyses = parser.parse(word)
         if not analyses:
-            return {"surface": word, "parsed": False, "error": "no parse"}
+            shell = {"surface": word, "parsed": False, "error": "no parse"}
+            if self.config.suggest_on_oov:
+                shell["suggestions"] = self.suggest(word)
+            return shell
 
         top = analyses[0]
         result = self._analysis_to_dict(top)
         result["parsed"] = True
         result["surface"] = word
+
+        # Out-of-vocabulary: the parser fell back to an OOV root, so offer
+        # near in-lexicon corrections (likely a typo or unknown word).
+        if top.oov and self.config.suggest_on_oov:
+            result["suggestions"] = self.suggest(word)
 
         if self.config.include_alternatives:
             # Only include alternatives that are reasonably competitive
