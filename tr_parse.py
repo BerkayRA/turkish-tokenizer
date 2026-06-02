@@ -487,6 +487,39 @@ class ParseConfig:
                                             # surface-tied cases)
     suffix_bonus:         float = 1.0      # legacy; superseded by per-char scoring
 
+    # --- Proper-noun handling -------------------------------------------
+    # Turkish capitalizes proper nouns, and uses an apostrophe to separate
+    # a proper-noun stem from its inflectional suffixes ("Muammer'in",
+    # "Ankara'dan"). Three nudges, all conservative because sentence-INITIAL
+    # words are also capitalized — title-case alone is NOT proof of a proper
+    # noun, so the title-case bonuses must never overpower a clean in-lex
+    # decomposition of a capitalized common word.
+    #
+    #  - apostrophe_boundary_bonus: when the surface contained an apostrophe,
+    #    reward analyses that place a MORPHEME boundary exactly at the
+    #    apostrophe. The apostrophe is an explicit morpheme boundary, so any
+    #    correct analysis must split there. Crucially this is NOT the
+    #    root|suffix split: compound proper nouns embed a possessive before
+    #    the apostrophe ("Parkı'ndan" = park+POSS|ndan, "Kıraathanesi'nin" =
+    #    kıraathane+POSS|nin), so the bonus checks for a boundary ANYWHERE in
+    #    the morpheme chain. Low-risk and eval-positive (root +0.1pp on the
+    #    no-leakage dev eval); demotes readings that cross the apostrophe.
+    #  - proper_noun_inlex_bonus: when the surface is title-case and an
+    #    in-lex root equals the whole (lowercased) word, nudge that bare
+    #    reading. Low-risk: it only reinforces "a capitalized known word read
+    #    as itself" (Hacı -> hacı over the spurious ha+cı), which is usually
+    #    already correct. Kept below productivity_bonus (2.5) so genuine
+    #    productive derivations of capitalized words still win.
+    #  - proper_noun_oov_bonus: when the surface is title-case with no
+    #    apostrophe, lift the full-span OOV candidate. Disabled by default
+    #    (0.0): the dominant oov_penalty (-50) means a small bonus only
+    #    re-ranks OOV-vs-OOV, and lifting a full-span name over decomposition
+    #    (Keremler -> kerem+PLUR) fights the decomposition policy. Wired for
+    #    tuning but left off; showed no measurable benefit on the dev eval.
+    apostrophe_boundary_bonus:  float = 3.0
+    proper_noun_inlex_bonus:    float = 1.0
+    proper_noun_oov_bonus:      float = 0.0   # disabled (see above)
+
 
 class Parser:
     """Turkish morphological parser. Initialize once with the lexicon,
@@ -518,15 +551,27 @@ class Parser:
         With return_all=False (default), only top-scoring analyses are
         returned (ties broken by frequency).
         """
+        # Capture proper-noun signals from the ORIGINAL surface before
+        # case-folding and apostrophe stripping erase them.
+        is_title = bool(word) and word[0] != tr_lower(word[0])
         word = tr_lower(word)
         # Turkish uses apostrophe to separate proper-noun stems from their
-        # inflectional suffixes ("Muammer'in", "Parkı'ndan"). The
-        # apostrophe is zero-width morphologically; strip it before parsing.
+        # inflectional suffixes ("Muammer'in", "Parkı'ndan"). The apostrophe
+        # is an explicit morpheme boundary and zero-width morphologically.
+        # Record the boundary (the first apostrophe's index, which equals the
+        # count of chars before it in stripped-word coordinates), then strip.
+        _APO = ("'", chr(0x2019), chr(0x2032))
+        apo_boundary: Optional[int] = None
+        for _apo in _APO:
+            _idx = word.find(_apo)
+            if _idx != -1 and (apo_boundary is None or _idx < apo_boundary):
+                apo_boundary = _idx
         for apo in ("'", "\u2019", "\u2032"):
             if apo in word:
                 word = word.replace(apo, "")
         chart = self._fill_chart(word)
-        analyses = self._collect(chart, word)
+        analyses = self._collect(chart, word, is_title=is_title,
+                                 apo_boundary=apo_boundary)
         analyses.sort(key=lambda a: -a.score)
         if not self.cfg.return_all and analyses:
             top = analyses[0].score
@@ -779,7 +824,8 @@ class Parser:
     # --- collection ---
 
     def _collect(self, chart: Dict[int, List[ParseFragment]],
-                 word: str) -> List[Analysis]:
+                 word: str, *, is_title: bool = False,
+                 apo_boundary: Optional[int] = None) -> List[Analysis]:
         N = len(word)
         out: List[Analysis] = []
         seen = set()
@@ -806,6 +852,34 @@ class Parser:
             score = frag.score
             if not root_morpheme.oov and len(morphemes) == 1:
                 score += self.cfg.bare_root_bonus
+            # --- Proper-noun nudges (see ParseConfig for rationale) ---
+            # Apostrophe boundary: the apostrophe is an explicit morpheme
+            # boundary, so reward analyses that place a morpheme boundary
+            # exactly there. NOTE: the boundary is NOT necessarily the
+            # root|suffix split — Turkish compound proper nouns embed a
+            # possessive before the apostrophe ("Parkı'ndan" = park+POSS|ndan,
+            # "Kıraathanesi'nin" = kıraathane+POSS|nin), so the correct root
+            # ends *before* the apostrophe. Checking for a boundary anywhere
+            # in the morpheme chain (not just after the root) avoids demoting
+            # those correct possessive-bearing readings.
+            if apo_boundary is not None:
+                cum = 0
+                for m in morphemes:
+                    cum += len(m.chunk)
+                    if cum == apo_boundary:
+                        score += self.cfg.apostrophe_boundary_bonus
+                        break
+            if is_title:
+                if (not root_morpheme.oov and len(morphemes) == 1
+                        and root_morpheme.root_form == word):
+                    # Capitalized known word read as itself (Hacı -> hacı).
+                    score += self.cfg.proper_noun_inlex_bonus
+                elif (apo_boundary is None and root_morpheme.oov
+                        and len(morphemes) == 1):
+                    # Genuinely-unknown bare proper noun (no apostrophe, so
+                    # the whole word is the name): lift the full-span OOV
+                    # reading over a decomposition of a shorter common root.
+                    score += self.cfg.proper_noun_oov_bonus
             out.append(Analysis(
                 surface=word,
                 root=root_morpheme.root_form,
