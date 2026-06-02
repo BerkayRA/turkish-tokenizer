@@ -26,6 +26,7 @@ result = tokenize("kitabımı")
 #   "surface": "kitabımı",
 #   "parsed": true,
 #   "root": "kitap",
+#   "lemma": "kitap",            # alias for root — the bare dictionary form
 #   "root_class": "NOUN",
 #   "final_class": "NOUN",
 #   "split": "kitab-ım-ı",
@@ -42,6 +43,8 @@ result = tokenize("kitabımı")
 #   "alternatives": [...]
 # }
 ```
+
+For downstream tasks that only need the dictionary form, read `result["lemma"]` (a convenience alias for `result["root"]`) and `result["surface"]` directly — no need to walk the morpheme chain.
 
 The module-level `tokenize()` constructs a default `Tokenizer` on first call and reuses it for subsequent ones. For more control (custom lexicon, disabling alternatives), construct a `Tokenizer` directly:
 
