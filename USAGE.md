@@ -61,6 +61,17 @@ results = tok.tokenize_batch(["kitap", "gel", "çıkardı"])
 
 The wire format is documented in `tr_api.py`'s module docstring and is stable. JSON serialization is verified by the test suite.
 
+### Tokenizing running text
+
+`tokenize_text()` splits a string into word / space / punctuation tokens (concatenating all `surface` fields reconstructs the input exactly) and analyses each word:
+
+```python
+tok.tokenize_text("Yarın gelecekmisin?")
+# tokens: "Yarın" | " " | "gelecek" | "misin" | "?"
+```
+
+Note that `gelecekmisin` was split into `gelecek` + `misin`. The interrogative particle *mi / mı / mu / mü* is officially written with a space but is routinely attached in casual writing; the pre-tokenizer (see `tr_pretokenize.py`) splits it off so each piece analyses correctly and the output matches UD's tokenization. The split is conservative — vowel-harmony aware and only applied when the whole word has no clean in-lexicon reading — so ordinary words ending in *-mi/-mu* (`resmi`, `ölümü`, `kalemi`) are left intact. Disable it with `TokenizerConfig(split_clitics=False)`.
+
 ## Parsing a word (lower-level)
 
 The minimal pattern is to load the three configuration objects, construct a parser, and call `.parse()`:

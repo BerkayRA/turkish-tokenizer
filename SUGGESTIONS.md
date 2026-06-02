@@ -4,7 +4,13 @@ Things I considered worth flagging but didn't pursue. Ordered roughly by user-vi
 
 ## High value, low/medium cost
 
-### 1. Sentence-level pre-tokenizer for attached `mi`
+### 1. Sentence-level pre-tokenizer for attached `mi` — ✅ DONE
+
+> Implemented in `tr_pretokenize.py` and wired into `Tokenizer.tokenize_text`
+> (`split_clitics` config flag). Conservative, vowel-harmony aware; splits
+> `gelecekmisin` → `gelecek` + `misin` without breaking `resmi`/`ölümü`.
+> Tests: `test_tr_pretokenize.py`.
+
 
 In Turkish text the question particle is *officially* written with a space (`gelecek mi`) but in casual writing very commonly without (`gelecekmi`, `gelecekmisin`). Our parser currently fails on the attached form. UD-Turkish-IMST has both conventions.
 
@@ -12,7 +18,14 @@ Implementation: add a pre-tokenizer pass that scans for word-final `m{i,ı,u,ü}
 
 Cost: medium (needs careful regex/scanning logic). Value: high — covers a real and frequent text pattern.
 
-### 2. Proper-noun handling
+### 2. Proper-noun handling — ✅ DONE
+
+> Apostrophe-boundary + title-case scoring nudges wired into `tr_parse.py`
+> (`apostrophe_boundary_bonus`, `proper_noun_inlex_bonus`). Fixes `Hacı`→hacı,
+> compound proper nouns like `Parkı'ndan`→park. Net dev eval: root +0.1pp,
+> floors hold. Tests: `test_tr_proper_noun.py`. (Note: the OOV nudge below was
+> wired but left disabled — see the ParseConfig comment for why.)
+
 
 `Kerem` (proper name) parses as `kere+...` (the common noun "time/occasion"). The eval errors include 5+ instances of this for `Kerem` alone, and many more for other proper nouns. A capitalization-aware bonus would fix this cleanly:
 
@@ -27,7 +40,11 @@ Plus an OOV path that strongly prefers a capitalized-surface match over decompos
 
 Cost: low (1-2 hours). Value: high — proper nouns are common and consistently misparse.
 
-### 3. Lemmatization output in the API
+### 3. Lemmatization output in the API — ✅ DONE
+
+> `tokenize()` output carries `lemma` (alias for `root`) and `surface`
+> directly. Documented in USAGE.md; tested by `test_lemma_property`.
+
 
 Currently `tokenize(word)` returns a `Token` with a morpheme chain. Most downstream tasks want just the lemma string. Adding `token.lemma → str` and `token.surface → str` as direct properties would be trivial and useful.
 

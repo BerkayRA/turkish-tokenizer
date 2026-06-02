@@ -45,6 +45,7 @@ from tr_inventory     import load_inventory
 from tr_morphotactics import load_graph
 from tr_lexicon       import load_lexicon
 from tr_parse         import Parser, ParseConfig, Analysis
+from tr_pretokenize   import split_question_clitic
 
 
 HERE = Path(__file__).parent
@@ -68,6 +69,10 @@ class TokenizerConfig:
     include_alternatives: bool = True
     max_alternatives:    int = 5
     parser_config:       Optional[ParseConfig] = None
+    # When True, tokenize_text() splits an attached interrogative particle
+    # (gelecekmisin -> gelecek + misin) into separate tokens before
+    # analysing. See tr_pretokenize for the (conservative) split rule.
+    split_clitics:       bool = True
 
 
 class Tokenizer:
@@ -166,11 +171,18 @@ class Tokenizer:
         tokens: List[Dict[str, Any]] = []
         for surface, kind in _split_text(text):
             if kind == "word":
-                tokens.append({
-                    "kind": "word",
-                    "surface": surface,
-                    "analysis": self.tokenize(surface),
-                })
+                # Split an attached interrogative particle into its own
+                # token (gelecekmisin -> gelecek + misin). The pieces
+                # concatenate back to `surface`, so text reconstruction is
+                # preserved. Disabled words yield a single piece.
+                pieces = (split_question_clitic(surface, self._parser_top)
+                          if self.config.split_clitics else [surface])
+                for piece in pieces:
+                    tokens.append({
+                        "kind": "word",
+                        "surface": piece,
+                        "analysis": self.tokenize(piece),
+                    })
             else:
                 tokens.append({
                     "kind": kind,
