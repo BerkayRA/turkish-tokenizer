@@ -52,6 +52,19 @@ from tr_fuzzy          import FuzzyIndex
 
 HERE = Path(__file__).parent
 
+# Morphology-aware stem-correction bounds (see Tokenizer.correct). Stems are
+# fuzzy-corrected only within this length window, with a capped number of
+# near roots per split, and each edit costs a score penalty so a cleaner
+# parse with fewer edits wins.
+_MIN_STEM_LEN = 2
+_MAX_STEM_LEN = 10
+_NEAR_ROOTS_PER_STEM = 4
+_STEM_EDIT_PENALTY = 3.0
+# Stem queries run once per candidate stem length, so they use a tight
+# edit radius (one typo) to stay fast; multi-edit cases fall back to the
+# single root-level suggestion query at the configured distance.
+_STEM_MAX_DISTANCE = 1
+
 
 @dataclass
 class TokenizerConfig:
@@ -135,6 +148,67 @@ class Tokenizer:
             word, max_distance=max_d, limit=self.config.max_suggestions)
         return [{"word": term, "distance": dist} for term, dist, _freq in hits]
 
+    def correct(self, word: str) -> List[Dict[str, Any]]:
+        """Morphology-aware correction of an OOV word.
+
+        Turkish is agglutinative, so a typo usually sits in the STEM of a
+        fully-inflected word ("mektobumu"). Matching the whole surface
+        against root forms is hopeless; instead, for each plausible stem
+        length we fuzzy-correct the prefix to a near in-lexicon root, glue
+        the untouched suffix tail back on, and RE-PARSE. A candidate is
+        kept only if the corrected word parses cleanly in-lexicon — the
+        parser is the oracle that rejects illegal suffix chains. Candidates
+        are ranked by parse score minus an edit-distance penalty.
+
+        Returns full-word corrections, best first, each a dict with the
+        corrected surface ("word"), its lemma, split, and the edit distance.
+        """
+        folded = fold_diacritics((word or "").strip().lower())
+        if len(folded) < _MIN_STEM_LEN + 1:
+            return []
+        # A word that already parses in-lexicon needs no correction.
+        whole = self._parser_top.parse(folded)
+        if whole and not whole[0].oov:
+            return []
+        fuzzy = self._fuzzy_index()
+        # corrected surface -> (score, Analysis, distance)
+        best: Dict[str, tuple] = {}
+        max_stem = min(len(folded), _MAX_STEM_LEN)
+        for r in range(_MIN_STEM_LEN, max_stem + 1):
+            stem, rest = folded[:r], folded[r:]
+            for cand, dist, _freq in fuzzy.nearest(
+                    stem, max_distance=_STEM_MAX_DISTANCE,
+                    limit=_NEAR_ROOTS_PER_STEM):
+                if cand == stem:
+                    continue  # no stem typo at this split
+                corrected = cand + rest
+                analyses = self._parser_top.parse(corrected)
+                if not analyses or analyses[0].oov:
+                    continue
+                top = analyses[0]
+                score = top.score - dist * _STEM_EDIT_PENALTY
+                prev = best.get(corrected)
+                if prev is None or score > prev[0]:
+                    best[corrected] = (score, top, dist)
+        ranked = sorted(best.values(), key=lambda v: -v[0])[:self.config.max_suggestions]
+        out: List[Dict[str, Any]] = []
+        for score, top, dist in ranked:
+            d = self._analysis_to_dict(top)
+            out.append({
+                "word":     top.surface,
+                "lemma":    top.root,
+                "split":    d["split"],
+                "tagged":   d["tagged"],
+                "distance": dist,
+            })
+        return out
+
+    def _oov_suggestions(self, word: str) -> List[Dict[str, Any]]:
+        """Best available OOV help: morphology-aware corrections when the
+        word inflects around a mistyped stem, else root-level suggestions."""
+        corrections = self.correct(word)
+        return corrections if corrections else self.suggest(word)
+
     def tokenize(self, word: str) -> Dict[str, Any]:
         """Tokenize a single word.
 
@@ -156,7 +230,7 @@ class Tokenizer:
         if not analyses:
             shell = {"surface": word, "parsed": False, "error": "no parse"}
             if self.config.suggest_on_oov:
-                shell["suggestions"] = self.suggest(word)
+                shell["suggestions"] = self._oov_suggestions(word)
             return shell
 
         top = analyses[0]
@@ -167,7 +241,7 @@ class Tokenizer:
         # Out-of-vocabulary: the parser fell back to an OOV root, so offer
         # near in-lexicon corrections (likely a typo or unknown word).
         if top.oov and self.config.suggest_on_oov:
-            result["suggestions"] = self.suggest(word)
+            result["suggestions"] = self._oov_suggestions(word)
 
         if self.config.include_alternatives:
             # Only include alternatives that are reasonably competitive

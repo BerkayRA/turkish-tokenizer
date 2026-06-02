@@ -81,6 +81,25 @@ Disable it with `TokenizerConfig(split_clitics=False)`.
 
 Lookups are circumflex-insensitive: loanword spellings with and without the circumflex resolve to the same lemma (`mekân` = `mekan`, `resmî` = `resmi`, `ilmî` = `ilmi`, `kâr` = `kar`). You can pass either spelling to `tokenize()` / `parse()`.
 
+### Spelling suggestions (OOV correction)
+
+When a word is out-of-vocabulary, `tokenize()` attaches a `suggestions` list of likely corrections:
+
+```python
+tok.tokenize("kitp")["suggestions"]
+# [{"word": "kitap", "lemma": "kitap", "split": "kitap", "distance": 1}, ...]
+
+tok.tokenize("okllarda")["suggestions"]
+# [{"word": "okullarda", "lemma": "okul", "split": "okul-lar-da", "distance": 1}, ...]
+```
+
+This is powered by `tr_fuzzy.py` (a reusable BK-tree over the root lexicon, with a Turkish-weighted edit cost — `i/ı`, `o/ö`, `c/ç`, ... confusions and transpositions are cheap) and works in two layers:
+
+- **Morphology-aware correction** (`Tokenizer.correct`) — for an inflected word with a mistyped *stem*, it fuzzy-corrects the stem, re-attaches the suffix chain, and re-parses, returning the full corrected word with its analysis (`okllarda` → `okullarda`, lemma `okul`).
+- **Root-level fallback** (`Tokenizer.suggest`) — near in-lexicon roots when no whole-word correction parses.
+
+Both are gated on OOV, so valid words never get suggestions; suffix-internal typos are out of scope (the stem is what gets corrected). Control via `TokenizerConfig(suggest_on_oov=…, suggestion_max_distance=…, max_suggestions=…)`. The BK-tree is built lazily on first use.
+
 ## Parsing a word (lower-level)
 
 The minimal pattern is to load the three configuration objects, construct a parser, and call `.parse()`:

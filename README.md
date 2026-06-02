@@ -27,6 +27,9 @@ lexicalized dictionary lemma.
 - Attached interrogative-particle splitting for informal text
   (`gelecekmisin` → `gelecek` + `misin`), conservative and vowel-harmony aware
   so ordinary words (`resmi`, `ölümü`) are left intact.
+- Circumflex-insensitive matching (`mekân` = `mekan`, `resmî` = `resmi`).
+- OOV spelling suggestions and morphology-aware correction
+  (`okllarda` → `okullarda`) via a reusable BK-tree fuzzy index (`tr_fuzzy.py`).
 - JSON-serializable API with a `lemma`/`surface` convenience shape and ranked
   alternative analyses.
 
@@ -64,10 +67,10 @@ lower-level `Parser`/`generate` entry points.
 python -m unittest discover -p "test_tr_*.py"
 ```
 
-280 tests across phonology, the suffix inventory, the parser, the API,
-proper-noun handling, and clitic pre-tokenization, plus an evaluation
-regression guard (`test_tr_phase5.py`) that locks in headline metrics on the
-UD dev set.
+315 tests across phonology, the suffix inventory, the parser, the API,
+proper-noun handling, clitic pre-tokenization, diacritic folding, and the
+fuzzy suggester, plus an evaluation regression guard (`test_tr_phase5.py`)
+that locks in headline metrics on the UD dev set.
 
 ## Evaluation
 
