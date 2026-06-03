@@ -32,6 +32,8 @@ lexicalized dictionary lemma.
   (`okllarda` → `okullarda`) via a reusable BK-tree fuzzy index (`tr_fuzzy.py`).
 - JSON-serializable API with a `lemma`/`surface` convenience shape and ranked
   alternative analyses.
+- LLM data-prep tooling: a streaming corpus normalizer (`tr_normalize.py`) and a
+  subword-tokenizer fertility / morpheme-alignment analyzer (`tr_fertility.py`).
 
 ## Requirements
 
@@ -67,7 +69,7 @@ lower-level `Parser`/`generate` entry points.
 python -m unittest discover -p "test_tr_*.py"
 ```
 
-321 tests across phonology, the suffix inventory, the parser, the API,
+349 tests across phonology, the suffix inventory, the parser, the API,
 proper-noun handling, clitic pre-tokenization, diacritic folding, and the
 fuzzy suggester / morphology-aware corrector, plus an evaluation regression
 guard (`test_tr_phase5.py`) that locks in headline metrics on the UD dev set.

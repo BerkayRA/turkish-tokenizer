@@ -229,6 +229,32 @@ python apply_additions.py            # merges into lexicon.json + lexicon_full.j
 
 `lexicon_train.json` is intentionally left out so the no-leakage evaluation stays honest. Person names are deliberately excluded — an unbounded class best left to the OOV path / NER. Extend the gazetteer by adding entries to the `additions` array.
 
+## Corpus tools for LLM data preparation
+
+Two streaming CLIs support using the tokenizer in an LLM training pipeline. Both default to a fast configuration (the lengthy OOV suggester and alternatives are off).
+
+**`tr_normalize.py`** — normalize a corpus line by line:
+
+```bash
+python tr_normalize.py corpus.txt > clean.txt          # surface: clitics spaced
+python tr_normalize.py --mode lemma corpus.txt          # lemmatized (dedup/freq)
+python tr_normalize.py --mode morphemes --sep '|' c.txt # morpheme-segmented
+python tr_normalize.py --mode jsonl corpus.txt          # per-token analysis
+python tr_normalize.py --mode surface --fold-diacritics corpus.txt
+```
+
+`surface` mode is the cleaned text you'd feed a subword-tokenizer trainer or train on (`gelecekmisin` → `gelecek mi`); `morphemes`/`lemma` support vocabulary design and deduplication; `jsonl` builds annotated datasets. Throughput and OOV% are printed to stderr.
+
+**`tr_fertility.py`** — score a subword tokenizer against the morphology, to compare candidates/vocab sizes:
+
+```bash
+python tr_fertility.py --tokenizer char corpus.txt      # built-in baseline
+python tr_fertility.py --spm tr_bpe.model corpus.txt     # SentencePiece
+python tr_fertility.py --hf <name-or-dir> corpus.txt     # Hugging Face
+```
+
+Reports **fertility** (subword tokens per word — lower is better for agglutinative Turkish), tokens/morpheme, single-token-word %, and **morpheme-boundary alignment** (precision/recall/F1 of where the subword tokenizer cuts vs. true morpheme boundaries). `sentencepiece` / `transformers` are optional (lazily imported only when `--spm` / `--hf` is used); the `whitespace` and `char` baselines need nothing.
+
 ## Extending the morphology — adding a new suffix
 
 Adding a suffix is a three-step change. First, write the entry in `inventory.json`. Second, add a transition in `morphotactics.json` saying which states it can leave from and which state it leads to. Third (optional), if the suffix needs a phonological alternation not covered by the existing rules, add a forward/inverse pair in `tr_rules.py`.
