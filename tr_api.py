@@ -314,7 +314,8 @@ class Tokenizer:
     def tokenize(self, word: str, *,
                  suggest: Optional[bool] = None,
                  tail_repair: Optional[bool] = None,
-                 alternatives: Optional[bool] = None) -> Dict[str, Any]:
+                 alternatives: Optional[bool] = None,
+                 split_clitics: Optional[bool] = None) -> Dict[str, Any]:
         """Tokenize a single word.
 
         Returns a JSON-serializable dict describing the top analysis
@@ -322,21 +323,48 @@ class Tokenizer:
         (extremely rare — only on input the parser truly can't handle),
         returns a `parsed: False` shell with the surface preserved.
 
+        If `split_clitics` is on and the word carries an attached
+        interrogative particle (gelecekmisin), the result instead carries a
+        `"segments"` list — one analysis dict per piece (gelecek, misin) —
+        with the original word as `surface`. Single-token words keep the
+        flat shape.
+
         Per-call overrides (None = use the configured default) let a caller
         turn off lengthy or niche work for fast bulk processing without
         rebuilding the tokenizer:
           - suggest:      attach OOV spelling suggestions
           - tail_repair:  include the (slow) suffix-tail repair pass
           - alternatives: include lower-ranked alternative analyses
+          - split_clitics: split an attached question particle into segments
         """
         if suggest is None:
             suggest = self.config.suggest_on_oov
         if alternatives is None:
             alternatives = self.config.include_alternatives
+        if split_clitics is None:
+            split_clitics = self.config.split_clitics
 
         word = (word or "").strip()
         if not word:
             return {"surface": "", "parsed": False, "error": "empty input"}
+
+        # Attached interrogative particle (gelecekmisin -> gelecek + misin):
+        # return one analysis per piece. Single words fall through unchanged.
+        if split_clitics:
+            pieces = split_question_clitic(word, self._parser_top)
+            if len(pieces) > 1:
+                segments = [
+                    self.tokenize(pc, suggest=suggest, tail_repair=tail_repair,
+                                  alternatives=alternatives, split_clitics=False)
+                    for pc in pieces
+                ]
+                return {
+                    "surface": word,
+                    "parsed": True,
+                    "segments": segments,
+                    "split": "  +  ".join(
+                        s.get("split") or s.get("surface", "") for s in segments),
+                }
 
         # Use the all-analyses parser when alternatives are wanted,
         # else top-only (faster).
@@ -433,7 +461,7 @@ class Tokenizer:
                         "surface": piece,
                         "analysis": self.tokenize(
                             piece, suggest=suggest, tail_repair=tail_repair,
-                            alternatives=alternatives),
+                            alternatives=alternatives, split_clitics=False),
                     })
             else:
                 tokens.append({

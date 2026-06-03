@@ -145,6 +145,7 @@ class TokenizerHandler(BaseHTTPRequestHandler):
                 suggest=flag("suggest"),
                 tail_repair=flag("tail"),
                 alternatives=flag("alts"),
+                split_clitics=flag("split"),
             )
             self._send_json(result)
         except Exception as e:

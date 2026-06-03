@@ -93,6 +93,15 @@ class TestSplitQuestionClitic(unittest.TestCase):
             with self.subTest(word=word):
                 self.assertEqual(self.split(word), expected)
 
+    def test_splits_agreement_cluster_over_oov_stem(self):
+        # Particle + agreement (mısınız) is unambiguous, so it splits even
+        # when the stem carries an OOV root (Çekoslovakya is not in the
+        # lexicon). The bare-particle path still requires an in-lex stem.
+        canary = "çekoslovakyalılaştıramadıklarımızdanmısınız"
+        self.assertEqual(
+            self.split(canary),
+            ["çekoslovakyalılaştıramadıklarımızdan", "mısınız"])
+
     def test_evidential_not_split(self):
         """-mış/-miş + agreement (okumuşsun) must NOT be read as a particle."""
         for word in ("okumuşsun", "görmüşsün", "tanımışım", "gelmişsin"):
@@ -135,6 +144,33 @@ class TestTokenizerClitics(unittest.TestCase):
         r = tok.tokenize_text("gelecekmisin?")
         words = [t["surface"] for t in r["tokens"] if t["kind"] == "word"]
         self.assertEqual(words, ["gelecekmisin"])
+
+    # --- single-word mode clitic splitting ---
+
+    def test_word_mode_returns_segments(self):
+        r = self.tok.tokenize("gelecekmisin")
+        self.assertIn("segments", r)
+        self.assertEqual([s["surface"] for s in r["segments"]],
+                         ["gelecek", "misin"])
+        self.assertEqual(r["surface"], "gelecekmisin")
+
+    def test_word_mode_canary_splits_and_decomposes(self):
+        r = self.tok.tokenize("çekoslovakyalılaştıramadıklarımızdanmısınız")
+        self.assertIn("segments", r)
+        surfaces = [s["surface"] for s in r["segments"]]
+        self.assertEqual(surfaces,
+                         ["çekoslovakyalılaştıramadıklarımızdan", "mısınız"])
+        # The particle segment is rooted at the interrogative particle.
+        self.assertEqual(r["segments"][1]["root"], "mı")
+
+    def test_word_mode_split_off_is_flat(self):
+        r = self.tok.tokenize("gelecekmisin", split_clitics=False)
+        self.assertNotIn("segments", r)
+
+    def test_word_mode_plain_word_is_flat(self):
+        r = self.tok.tokenize("kitabımı")
+        self.assertNotIn("segments", r)
+        self.assertEqual(r["split"], "kitab-ım-ı")
 
 
 if __name__ == "__main__":

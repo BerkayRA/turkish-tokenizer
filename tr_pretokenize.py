@@ -102,13 +102,14 @@ def split_question_clitic(word: str, parser) -> List[str]:
     whole = parser.parse(wl)
     whole_clean = bool(whole) and not whole[0].oov
 
-    # Find every 'm' that starts a harmonising particle cluster whose head is
-    # a real in-lexicon word. Classify each by whether the cluster carries
-    # person/copular agreement (an unambiguous question) or is a bare
-    # particle (ambiguous with noun morphology).
+    # Find every 'm' that starts a harmonising particle cluster on a
+    # plausible stem. Classify by whether the cluster carries person/copular
+    # agreement (an unambiguous question) or is a bare particle (ambiguous
+    # with noun morphology). Head index starts at 2 — a one-letter stem
+    # before a question particle is implausible.
     agreement_splits = []
     bare_splits = []
-    for i in range(1, len(wl) - 1):
+    for i in range(2, len(wl) - 1):
         if wl[i] != "m":
             continue
         head = wl[:i]
@@ -120,12 +121,18 @@ def split_question_clitic(word: str, parser) -> List[str]:
         if not tail_an or tail_an[0].oov or tail_an[0].root not in PARTICLES:
             continue
         head_an = parser.parse(head)
-        if not head_an or head_an[0].oov:
+        if not head_an:
             continue
-        bare_splits.append(i)
         tail_suffix_ids = {m.suffix_id for m in tail_an[0].morphemes[1:]}
         if tail_suffix_ids & COPULAR_AGREEMENT_IDS:
+            # Particle + person/copular agreement (misin, mısınız, mıydı) is
+            # unambiguous, so the stem only has to be a plausible word — it may
+            # carry an OOV root, e.g. the unknown proper-noun base in
+            # "Çekoslovakyalılaştır…mısınız". Bare particles below still
+            # require an in-lexicon stem to avoid false splits (resmi, ölümü).
             agreement_splits.append(i)
+        elif not head_an[0].oov:
+            bare_splits.append(i)
 
     # Unambiguous attached question (particle + person/copular agreement):
     # split even over a clean whole-word parse. hastamısın -> hasta + mısın.

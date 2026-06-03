@@ -125,6 +125,14 @@
   .sugg-lemma { color: #b08948; font-size: 0.85rem; }
   .suggest-list li:hover .sugg-lemma { color: #d9b98a; }
 
+  /* Clitic-split segments (single-word mode) */
+  .seg-note { font-size: 0.85rem; color: #555; margin-bottom: 14px; }
+  .seg-note b { color: #1d1d1d; }
+  .segment { padding-bottom: 6px; margin-bottom: 14px;
+             border-bottom: 1px dashed #e7e6df; }
+  .segment:last-of-type { border-bottom: none; margin-bottom: 4px; }
+  .segment h2 { font-size: 1rem; }
+
   /* ---------- samples ---------- */
   .samples {
     margin: 4px 0 0; padding: 0;
@@ -598,6 +606,7 @@ async function runWord() {
       suggest: o.suggest ? 1 : 0,
       tail:    o.tail ? 1 : 0,
       alts:    o.alts ? 1 : 0,
+      split:   o.clitics ? 1 : 0,
     });
     const resp = await fetch("/api/tokenize?" + qs.toString());
     const data = await resp.json();
@@ -610,6 +619,32 @@ async function runWord() {
 function renderWordResult(data) {
   if (!data.parsed) {
     return `<div class="panel error">Could not parse: ${escapeHTML(data.error || "unknown")}</div>`;
+  }
+  // A word with an attached clitic (gelecekmisin) comes back as segments:
+  // one analysis per piece. Render each under its own sub-heading.
+  if (data.segments && data.segments.length > 1) {
+    let html = `<div class="panel">`;
+    html += `<div class="seg-note">Split into ${data.segments.length} tokens:
+             <b>${data.segments.map(s => escapeHTML(s.surface)).join(" + ")}</b></div>`;
+    data.segments.forEach(seg => {
+      html += `<div class="segment">`;
+      html += `<h2>${escapeHTML(seg.surface)}</h2>`;
+      html += renderSuggestions(seg.suggestions);
+      if (seg.parsed) {
+        html += renderMorphemeChips(seg.morphemes);
+        html += renderMeta(seg);
+        html += renderFeatures(seg.features);
+        if (seg.alternatives && seg.alternatives.length > 0) {
+          html += renderAlternatives(seg.alternatives);
+        }
+      } else {
+        html += `<div class="error">Could not parse this piece.</div>`;
+      }
+      html += `</div>`;
+    });
+    html += renderLegend();
+    html += `</div>`;
+    return html;
   }
   let html = `<div class="panel">`;
   html += renderSuggestions(data.suggestions);
