@@ -101,7 +101,10 @@ class TestMorphologyAwareCorrection(unittest.TestCase):
     def test_bare_correction_shows_canonical_not_softened(self):
         # A bare correction must surface the citation form (mektup), never
         # the softened stem (mektub).
-        self.assertEqual(self.top_suggestion("mektob"), "mektup")
+        sugg = self.tok.tokenize("mektob").get("suggestions", [])
+        self.assertTrue(sugg)
+        self.assertEqual(sugg[0]["word"], "mektup")
+        self.assertNotEqual(sugg[0]["word"], "mektub")
 
 
 if __name__ == "__main__":
