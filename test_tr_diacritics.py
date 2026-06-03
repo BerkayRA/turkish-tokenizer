@@ -80,6 +80,13 @@ class TestTokenizerDiacritics(unittest.TestCase):
         self.assertEqual(r["root"], self.root("mekan"))
         self.assertEqual(r["split"], "mekan-da")
 
+    def test_circumflex_word_is_one_token_in_text(self):
+        # Circumflex letters are word characters, so a loanword like 'mekân'
+        # is a single token in sentence mode (not split into mek + â + n).
+        r = self.tok.tokenize_text("mekân çok güzeldi")
+        words = [t["surface"] for t in r["tokens"] if t["kind"] == "word"]
+        self.assertEqual(words, ["mekân", "çok", "güzeldi"])
+
     def test_recognised_loanword_not_split_as_clitic(self):
         # 'ilmi' must NOT be split into il + mi now that it resolves in-lex.
         r = self.tok.tokenize_text("ilmi")

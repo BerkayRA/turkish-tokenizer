@@ -538,6 +538,7 @@ __all__ = ["Tokenizer", "TokenizerConfig", "tokenize"]
 _WORD_CHARS = set("abcdefghijklmnopqrstuvwxyz"
                   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                   "çğıöşüÇĞİÖŞÜ"
+                  "âîûêôÂÎÛÊÔ"        # circumflex vowels (mekân, resmî, kâr)
                   "0123456789"
                   "'’")  # both straight and curly apostrophe
 
