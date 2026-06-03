@@ -139,5 +139,36 @@ class TestTailRepair(unittest.TestCase):
                 self.assertEqual(self.tok.correct(w), [])
 
 
+class TestPerCallOverrides(unittest.TestCase):
+    """Per-call kwargs override the config without rebuilding the tokenizer."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tok = Tokenizer()
+
+    def test_suggest_override(self):
+        self.assertIn("suggestions", self.tok.tokenize("kitp", suggest=True))
+        self.assertNotIn("suggestions", self.tok.tokenize("kitp", suggest=False))
+
+    def test_tail_repair_override(self):
+        # Off -> a pure suffix typo is not corrected; on -> it is.
+        self.assertEqual(
+            self.tok.tokenize("evlerimizdne", tail_repair=False).get("suggestions"), [])
+        on = self.tok.tokenize("evlerimizdne", tail_repair=True).get("suggestions", [])
+        self.assertTrue(any(s["word"] == "evlerimizden" for s in on))
+
+    def test_alternatives_override(self):
+        self.assertNotIn("alternatives", self.tok.tokenize("yüzü", alternatives=False))
+        self.assertIn("alternatives", self.tok.tokenize("yüzü", alternatives=True))
+
+    def test_text_overrides_propagate(self):
+        off = self.tok.tokenize_text("gelecekmisin", split_clitics=False)
+        on = self.tok.tokenize_text("gelecekmisin", split_clitics=True)
+        words_off = [t["surface"] for t in off["tokens"] if t["kind"] == "word"]
+        words_on = [t["surface"] for t in on["tokens"] if t["kind"] == "word"]
+        self.assertEqual(words_off, ["gelecekmisin"])
+        self.assertEqual(words_on, ["gelecek", "misin"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -200,7 +200,8 @@ class Tokenizer:
                 break
         return out
 
-    def correct(self, word: str) -> List[Dict[str, Any]]:
+    def correct(self, word: str,
+                tail_repair: Optional[bool] = None) -> List[Dict[str, Any]]:
         """Morphology-aware correction of an OOV word.
 
         Turkish is agglutinative, so a typo can sit either in the STEM of a
@@ -227,9 +228,11 @@ class Tokenizer:
         if whole and not whole[0].oov:
             return []
         # corrected surface -> (score, Analysis, distance)
+        if tail_repair is None:
+            tail_repair = self.config.correct_tail_typos
         best: Dict[str, tuple] = {}
         self._repair_stem(folded, best)
-        if self.config.correct_tail_typos:
+        if tail_repair:
             self._repair_tail(folded, best)
         # Rank: fewest edits first; then the SIMPLEST analysis (fewest
         # morphemes) so a doubled-letter fix (öğretmenn -> öğretmen) is not
@@ -301,34 +304,48 @@ class Tokenizer:
             if analyses and not analyses[0].oov:
                 self._record(best, corrected, analyses[0], 1)
 
-    def _oov_suggestions(self, word: str) -> List[Dict[str, Any]]:
+    def _oov_suggestions(self, word: str,
+                         tail_repair: Optional[bool] = None) -> List[Dict[str, Any]]:
         """Best available OOV help: morphology-aware corrections when the
         word inflects around a mistyped stem, else root-level suggestions."""
-        corrections = self.correct(word)
+        corrections = self.correct(word, tail_repair=tail_repair)
         return corrections if corrections else self.suggest(word)
 
-    def tokenize(self, word: str) -> Dict[str, Any]:
+    def tokenize(self, word: str, *,
+                 suggest: Optional[bool] = None,
+                 tail_repair: Optional[bool] = None,
+                 alternatives: Optional[bool] = None) -> Dict[str, Any]:
         """Tokenize a single word.
 
         Returns a JSON-serializable dict describing the top analysis
         plus any alternatives (if configured). If no parse succeeds
         (extremely rare — only on input the parser truly can't handle),
         returns a `parsed: False` shell with the surface preserved.
+
+        Per-call overrides (None = use the configured default) let a caller
+        turn off lengthy or niche work for fast bulk processing without
+        rebuilding the tokenizer:
+          - suggest:      attach OOV spelling suggestions
+          - tail_repair:  include the (slow) suffix-tail repair pass
+          - alternatives: include lower-ranked alternative analyses
         """
+        if suggest is None:
+            suggest = self.config.suggest_on_oov
+        if alternatives is None:
+            alternatives = self.config.include_alternatives
+
         word = (word or "").strip()
         if not word:
             return {"surface": "", "parsed": False, "error": "empty input"}
 
         # Use the all-analyses parser when alternatives are wanted,
         # else top-only (faster).
-        parser = (self._parser_all
-                  if self.config.include_alternatives
-                  else self._parser_top)
+        parser = self._parser_all if alternatives else self._parser_top
         analyses = parser.parse(word)
         if not analyses:
             shell = {"surface": word, "parsed": False, "error": "no parse"}
-            if self.config.suggest_on_oov:
-                shell["suggestions"] = self._oov_suggestions(word)
+            if suggest:
+                shell["suggestions"] = self._oov_suggestions(word, tail_repair)
             return shell
 
         top = analyses[0]
@@ -338,10 +355,10 @@ class Tokenizer:
 
         # Out-of-vocabulary: the parser fell back to an OOV root, so offer
         # near in-lexicon corrections (likely a typo or unknown word).
-        if top.oov and self.config.suggest_on_oov:
-            result["suggestions"] = self._oov_suggestions(word)
+        if top.oov and suggest:
+            result["suggestions"] = self._oov_suggestions(word, tail_repair)
 
-        if self.config.include_alternatives:
+        if alternatives:
             # Only include alternatives that are reasonably competitive
             # with the top: same order of magnitude, in-lexicon, and
             # not duplicating the top's root + suffix shape.
@@ -368,8 +385,16 @@ class Tokenizer:
         """Tokenize a list of words. Convenience wrapper over tokenize()."""
         return [self.tokenize(w) for w in words]
 
-    def tokenize_text(self, text: str) -> Dict[str, Any]:
+    def tokenize_text(self, text: str, *,
+                      split_clitics: Optional[bool] = None,
+                      suggest: Optional[bool] = None,
+                      tail_repair: Optional[bool] = None,
+                      alternatives: Optional[bool] = None) -> Dict[str, Any]:
         """Tokenize a full sentence or paragraph.
+
+        Per-call overrides (None = configured default) propagate to each
+        word; turn the lengthy ones off for fast bulk/document processing:
+        split_clitics, suggest, tail_repair, alternatives (see tokenize()).
 
         Splits `text` into tokens on whitespace and punctuation,
         preserves the punctuation in order, and runs tokenize() on each
@@ -390,6 +415,8 @@ class Tokenizer:
         renderer to lay out the morpheme-level breakdown inline with
         the original punctuation and spacing.
         """
+        if split_clitics is None:
+            split_clitics = self.config.split_clitics
         text = text or ""
         tokens: List[Dict[str, Any]] = []
         for surface, kind in _split_text(text):
@@ -399,12 +426,14 @@ class Tokenizer:
                 # concatenate back to `surface`, so text reconstruction is
                 # preserved. Disabled words yield a single piece.
                 pieces = (split_question_clitic(surface, self._parser_top)
-                          if self.config.split_clitics else [surface])
+                          if split_clitics else [surface])
                 for piece in pieces:
                     tokens.append({
                         "kind": "word",
                         "surface": piece,
-                        "analysis": self.tokenize(piece),
+                        "analysis": self.tokenize(
+                            piece, suggest=suggest, tail_repair=tail_repair,
+                            alternatives=alternatives),
                     })
             else:
                 tokens.append({
