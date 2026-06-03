@@ -150,6 +150,26 @@ class Lexicon:
     def all_roots(self) -> List[Root]:
         return list(self._roots)
 
+    def stem_forms(self, include_variants: bool = False):
+        """Yield (folded_form, lemma, frequency) stem forms for building
+        auxiliary indexes (e.g. a fuzzy matcher).
+
+        Always includes the canonical form and the softened-final-consonant
+        form (kitap -> kitab), which lets a fuzzy matcher repair typos that
+        sit next to a softened stem boundary. Explicit variants (vowel-drop,
+        irregular alternations like oğul->oğl, de->di) are EXCLUDED by
+        default: they are partial stems that add spurious near-neighbours
+        and degrade suggestion ranking. `lemma` is always the canonical
+        Root.form."""
+        for r in self._roots:
+            forms = {r.form}
+            if r.soften and r.form and r.form[-1] in SOFTEN_MAP:
+                forms.add(r.form[:-1] + SOFTEN_MAP[r.form[-1]])
+            if include_variants:
+                forms.update(r.variants)
+            for f in forms:
+                yield fold_diacritics(f), r.form, r.frequency
+
 
 # -----------------------------------------------------------------------------
 # Loading

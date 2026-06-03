@@ -85,6 +85,24 @@ class TestMorphologyAwareCorrection(unittest.TestCase):
     def test_garbage_not_corrected(self):
         self.assertEqual(self.tok.correct("zzzqww"), [])
 
+    def test_corrects_typo_at_softened_stem_boundary(self):
+        # The softened stem form (kitap->kitab, mektup->mektub) is in the
+        # fuzzy index, so a typo next to the boundary is repaired and the
+        # surface is reconstructed correctly.
+        k = self.tok.correct("kitebımı")
+        self.assertTrue(k)
+        self.assertEqual(k[0]["lemma"], "kitap")
+        self.assertEqual(k[0]["word"], "kitabımı")
+        m = self.tok.correct("mektobu")
+        self.assertTrue(m)
+        self.assertEqual(m[0]["lemma"], "mektup")
+        self.assertEqual(m[0]["word"], "mektubu")
+
+    def test_bare_correction_shows_canonical_not_softened(self):
+        # A bare correction must surface the citation form (mektup), never
+        # the softened stem (mektub).
+        self.assertEqual(self.top_suggestion("mektob"), "mektup")
+
 
 if __name__ == "__main__":
     unittest.main()

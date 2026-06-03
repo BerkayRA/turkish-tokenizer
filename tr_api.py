@@ -115,19 +115,25 @@ class Tokenizer:
         # Fuzzy index over root forms, built lazily on the first suggestion
         # request (so tokenizing never pays for it unless OOV help is used).
         self._fuzzy: Optional[FuzzyIndex] = None
+        # Maps each indexed (folded) form back to its canonical lemma, so
+        # suggestions surface citation forms even though the index also holds
+        # softened/variant stems (e.g. "kitab" -> "kitap").
+        self._form_lemma: Dict[str, str] = {}
 
     def _fuzzy_index(self) -> FuzzyIndex:
-        """Lazily build (and cache) the BK-tree over root forms. Keyed on
-        circumflex-folded forms so suggestions are diacritic-insensitive,
-        keeping the highest frequency per folded key."""
+        """Lazily build (and cache) the BK-tree over all indexed surface
+        forms — canonical, variants, and softened stems — keyed on
+        circumflex-folded forms. Indexing the softened/variant stems lets
+        the morphology-aware corrector fix typos that sit next to a stem
+        boundary (kitebımı -> kitabımı)."""
         if self._fuzzy is None:
             terms: Dict[str, int] = {}
-            for root in self._lex.all_roots():
-                key = fold_diacritics(root.form)
+            for key, lemma, freq in self._lex.stem_forms():
                 if len(key) < 2:
                     continue
-                if root.frequency > terms.get(key, -1):
-                    terms[key] = root.frequency
+                if key not in terms or freq > terms[key]:
+                    terms[key] = freq
+                    self._form_lemma[key] = lemma
             self._fuzzy = FuzzyIndex(terms)
         return self._fuzzy
 
@@ -144,9 +150,22 @@ class Tokenizer:
         # Short words tolerate fewer edits (a 2-edit window on a 4-letter
         # word matches almost anything).
         max_d = 1 if len(word) <= 4 else self.config.suggestion_max_distance
+        # Over-fetch, then map indexed forms (which include softened/variant
+        # stems) back to canonical lemmas and de-duplicate, so the surfaced
+        # suggestions are citation forms.
         hits = self._fuzzy_index().nearest(
-            word, max_distance=max_d, limit=self.config.max_suggestions)
-        return [{"word": term, "distance": dist} for term, dist, _freq in hits]
+            word, max_distance=max_d, limit=self.config.max_suggestions * 3)
+        out: List[Dict[str, Any]] = []
+        seen = set()
+        for term, dist, _freq in hits:
+            lemma = self._form_lemma.get(term, term)
+            if lemma in seen:
+                continue
+            seen.add(lemma)
+            out.append({"word": lemma, "distance": dist})
+            if len(out) >= self.config.max_suggestions:
+                break
+        return out
 
     def correct(self, word: str) -> List[Dict[str, Any]]:
         """Morphology-aware correction of an OOV word.
@@ -194,8 +213,12 @@ class Tokenizer:
         out: List[Dict[str, Any]] = []
         for score, top, dist in ranked:
             d = self._analysis_to_dict(top)
+            # For a bare (single-morpheme) correction, show the canonical
+            # lemma rather than the matched surface, which may be a softened
+            # stem form (mektub) that is not a valid standalone word.
+            corrected_word = top.root if len(top.morphemes) == 1 else top.surface
             out.append({
-                "word":     top.surface,
+                "word":     corrected_word,
                 "lemma":    top.root,
                 "split":    d["split"],
                 "tagged":   d["tagged"],
