@@ -77,6 +77,25 @@
   button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
   .hint { color: #888; font-size: 0.85rem; }
 
+  /* Options panel */
+  .options { margin: 0 0 18px; border: 1px solid #e7e6df; border-radius: 6px;
+             background: #fff; }
+  .options > summary { cursor: pointer; padding: 10px 14px; font-size: 0.8rem;
+             font-weight: 600; color: #555; text-transform: uppercase;
+             letter-spacing: 0.04em; list-style: none; }
+  .options > summary::-webkit-details-marker { display: none; }
+  .options > summary::before { content: "\25B8\00a0"; color: #999; }
+  .options[open] > summary::before { content: "\25BE\00a0"; }
+  .options-grid { display: grid; grid-template-columns: 1fr 1fr;
+             gap: 10px 20px; padding: 2px 14px 14px; }
+  .options-grid label { display: flex; align-items: baseline; gap: 8px;
+             font-size: 0.9rem; color: #333; cursor: pointer; }
+  .options-grid input { margin: 0; flex: none; }
+  .opt-note { color: #999; font-size: 0.8rem; }
+  .opt-note.slow { color: #b25a00; }
+  .options-grid label.disabled { opacity: 0.45; cursor: default; }
+  @media (max-width: 540px) { .options-grid { grid-template-columns: 1fr; } }
+
   /* ---------- samples ---------- */
   .samples {
     margin: 4px 0 0; padding: 0;
@@ -371,6 +390,25 @@
 </div>
 
 <!-- ============================================================
+     Options — toggle lengthy / niche processing. Turning the slow
+     ones off is the fast path for tokenizing large documents.
+============================================================ -->
+<details class="options" id="options">
+  <summary>Options</summary>
+  <div class="options-grid">
+    <label><input type="checkbox" id="opt-suggest" checked>
+      Spelling suggestions <span class="opt-note">on unknown words</span></label>
+    <label id="opt-tail-label"><input type="checkbox" id="opt-tail" checked>
+      Suffix-tail typo repair
+      <span class="opt-note slow">slow — off for large documents</span></label>
+    <label><input type="checkbox" id="opt-clitics" checked>
+      Split attached “mi” particle</label>
+    <label><input type="checkbox" id="opt-alts" checked>
+      Show alternative analyses</label>
+  </div>
+</details>
+
+<!-- ============================================================
      Single-word mode
 ============================================================ -->
 <div id="mode-word">
@@ -394,6 +432,8 @@
     <li onclick="setWord('olduğu')">olduğu</li>
     <li onclick="setWord('yaptırıldı')">yaptırıldı</li>
     <li onclick="setWord('evlerimizde')">evlerimizde</li>
+    <li onclick="setWord('kitp')">kitp (typo)</li>
+    <li onclick="setWord('mekân')">mekân (diacritic)</li>
   </ul>
   <div id="word-result"></div>
 </div>
@@ -423,6 +463,9 @@
     <li onclick="setText('Bunu yapmamış olabilir.')">
       Bunu yapmamış olabilir.
     </li>
+    <li onclick="setText('Yarın bizimle gelecekmisin?')">
+      Yarın bizimle gelecekmisin?
+    </li>
   </ul>
   <div id="text-result"></div>
 </div>
@@ -450,6 +493,36 @@
 ==================================================================== */
 
 const $ = (id) => document.getElementById(id);
+
+// ----- options -----
+function readOptions() {
+  return {
+    suggest: $("opt-suggest").checked,
+    tail:    $("opt-tail").checked,
+    clitics: $("opt-clitics").checked,
+    alts:    $("opt-alts").checked,
+  };
+}
+
+// Tail repair only matters when suggestions are on; grey it out otherwise.
+function syncOptionDeps() {
+  const on = $("opt-suggest").checked;
+  $("opt-tail").disabled = !on;
+  $("opt-tail-label").classList.toggle("disabled", !on);
+}
+
+// Re-run the visible mode when an option changes (if it already has input).
+function rerunActive() {
+  if ($("mode-word").style.display !== "none") {
+    if ($("word-input").value.trim()) runWord();
+  } else if ($("text-input").value.trim()) {
+    runText();
+  }
+}
+
+["opt-suggest", "opt-tail", "opt-clitics", "opt-alts"].forEach(id => {
+  $(id).addEventListener("change", () => { syncOptionDeps(); rerunActive(); });
+});
 
 // ----- mode switching -----
 function setMode(mode) {
@@ -486,7 +559,14 @@ async function runWord() {
   const target = $("word-result");
   target.innerHTML = '<div class="panel"><em>Analyzing…</em></div>';
   try {
-    const resp = await fetch("/api/tokenize?word=" + encodeURIComponent(word));
+    const o = readOptions();
+    const qs = new URLSearchParams({
+      word: word,
+      suggest: o.suggest ? 1 : 0,
+      tail:    o.tail ? 1 : 0,
+      alts:    o.alts ? 1 : 0,
+    });
+    const resp = await fetch("/api/tokenize?" + qs.toString());
     const data = await resp.json();
     target.innerHTML = renderWordResult(data);
   } catch (err) {
@@ -520,10 +600,19 @@ async function runText() {
   const target = $("text-result");
   target.innerHTML = '<div class="panel"><em>Analyzing…</em></div>';
   try {
+    const o = readOptions();
     const resp = await fetch("/api/tokenize_text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text }),
+      body: JSON.stringify({
+        text: text,
+        options: {
+          suggest:       o.suggest,
+          tail_repair:   o.tail,
+          split_clitics: o.clitics,
+          alternatives:  o.alts,
+        },
+      }),
     });
     const data = await resp.json();
     target.innerHTML = renderSentenceResult(data);
@@ -769,6 +858,7 @@ function escapeHTML(s) {
 
 // Focus the word input on load.
 window.addEventListener("load", () => {
+  syncOptionDeps();
   $("word-input").focus();
 });
 </script>
