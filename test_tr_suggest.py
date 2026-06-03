@@ -107,5 +107,37 @@ class TestMorphologyAwareCorrection(unittest.TestCase):
         self.assertNotEqual(sugg[0]["word"], "mektub")
 
 
+class TestTailRepair(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tok = Tokenizer()
+
+    def test_repairs_suffix_transposition(self):
+        # evlerimizdne -> evlerimizden (n/e transposed in the case suffix);
+        # stem repair can't fix this since the stem (ev) is correct.
+        out = self.tok.correct("evlerimizdne")
+        self.assertTrue(out)
+        self.assertEqual(out[0]["word"], "evlerimizden")
+        self.assertEqual(out[0]["lemma"], "ev")
+
+    def test_repairs_missing_suffix_letter(self):
+        # A correct repair must appear among the candidates.
+        words = [x["word"] for x in self.tok.correct("kitaplarn")]
+        self.assertTrue(any(w in ("kitapları", "kitapların") for w in words))
+
+    def test_tail_repair_can_be_disabled(self):
+        tok = Tokenizer(TokenizerConfig(correct_tail_typos=False))
+        # With tail repair off, a pure suffix typo is no longer corrected.
+        self.assertEqual(tok.correct("evlerimizdne"), [])
+        # ...but stem repair still works.
+        self.assertTrue(tok.correct("kitp"))
+
+    def test_valid_word_still_not_corrected(self):
+        for w in ("evlerimizden", "kitaplarım", "geldim"):
+            with self.subTest(word=w):
+                self.assertEqual(self.tok.correct(w), [])
+
+
 if __name__ == "__main__":
     unittest.main()

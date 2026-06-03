@@ -95,10 +95,12 @@ tok.tokenize("okllarda")["suggestions"]
 
 This is powered by `tr_fuzzy.py` (a reusable BK-tree over the root lexicon, with a Turkish-weighted edit cost — `i/ı`, `o/ö`, `c/ç`, ... confusions and transpositions are cheap) and works in two layers:
 
-- **Morphology-aware correction** (`Tokenizer.correct`) — for an inflected word with a mistyped *stem*, it fuzzy-corrects the stem, re-attaches the suffix chain, and re-parses, returning the full corrected word with its analysis (`okllarda` → `okullarda`, lemma `okul`).
-- **Root-level fallback** (`Tokenizer.suggest`) — near in-lexicon roots when no whole-word correction parses.
+- **Morphology-aware correction** (`Tokenizer.correct`) runs two passes, both validated by re-parsing:
+  - *Stem repair* — fuzzy-corrects a mistyped stem, re-attaches the suffix chain (`okllarda` → `okullarda`, `kitebımı` → `kitabımı`). The softened stem form is indexed too, so typos next to a stem boundary reconstruct correctly.
+  - *Tail repair* — brute-forces a single edit over the final few characters to fix suffix-internal typos (`evlerimizdne` → `evlerimizden`), which stem repair can't reach.
+- **Root-level fallback** (`Tokenizer.suggest`) — near in-lexicon roots (citation forms) when no whole-word correction parses.
 
-Both are gated on OOV, so valid words never get suggestions; suffix-internal typos are out of scope (the stem is what gets corrected). Control via `TokenizerConfig(suggest_on_oov=…, suggestion_max_distance=…, max_suggestions=…)`. The BK-tree is built lazily on first use.
+Candidates rank by edit distance, then by the simplest analysis, then parse score. Everything is gated on OOV, so valid words never get suggestions. Control via `TokenizerConfig(suggest_on_oov=…, suggestion_max_distance=…, max_suggestions=…, correct_tail_typos=…)`. The BK-tree is built lazily on first use; tail repair is the most expensive pass, so disable `correct_tail_typos` for high-throughput batch work.
 
 ## Parsing a word (lower-level)
 

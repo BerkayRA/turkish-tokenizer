@@ -67,10 +67,10 @@ lower-level `Parser`/`generate` entry points.
 python -m unittest discover -p "test_tr_*.py"
 ```
 
-315 tests across phonology, the suffix inventory, the parser, the API,
+321 tests across phonology, the suffix inventory, the parser, the API,
 proper-noun handling, clitic pre-tokenization, diacritic folding, and the
-fuzzy suggester, plus an evaluation regression guard (`test_tr_phase5.py`)
-that locks in headline metrics on the UD dev set.
+fuzzy suggester / morphology-aware corrector, plus an evaluation regression
+guard (`test_tr_phase5.py`) that locks in headline metrics on the UD dev set.
 
 ## Evaluation
 

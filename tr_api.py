@@ -65,6 +65,35 @@ _STEM_EDIT_PENALTY = 3.0
 # single root-level suggestion query at the configured distance.
 _STEM_MAX_DISTANCE = 1
 
+# Suffix-tail repair: brute-force a single edit over the last few characters
+# (where inflectional typos sit) and validate by re-parsing. Editing only a
+# trailing window keeps the stem untouched (so it never invents a different
+# root) and bounds the candidate count regardless of word length.
+_TAIL_EDIT_WINDOW = 4
+# Letters that actually occur in Turkish inflectional suffixes. Restricting
+# tail insertions/substitutions to these (rather than the full alphabet)
+# roughly halves the candidate count without losing real suffix repairs.
+_SUFFIX_ALPHABET = "aeıioöuücçdgğklmnrsştyz"
+
+
+def _edits1(text: str, alphabet: str = _SUFFIX_ALPHABET):
+    """All strings one Damerau edit (delete / transpose / substitute /
+    insert over `alphabet`) away from `text`."""
+    splits = [(text[:i], text[i:]) for i in range(len(text) + 1)]
+    out = set()
+    for left, right in splits:
+        if right:                                   # deletion
+            out.add(left + right[1:])
+        if len(right) > 1:                          # transposition
+            out.add(left + right[1] + right[0] + right[2:])
+        if right:                                   # substitution
+            for c in alphabet:
+                out.add(left + c + right[1:])
+        for c in alphabet:                          # insertion
+            out.add(left + c + right)
+    out.discard(text)
+    return out
+
 
 @dataclass
 class TokenizerConfig:
@@ -94,6 +123,10 @@ class TokenizerConfig:
     suggest_on_oov:      bool = True
     suggestion_max_distance: int = 2      # max edit distance for suggestions
     max_suggestions:     int = 3          # cap on suggestions returned
+    # Brute-force single-edit repair of the inflectional tail (in addition
+    # to stem repair). Catches suffix-internal typos but costs more per OOV
+    # word; disable for high-throughput batch use.
+    correct_tail_typos:  bool = True
 
 
 class Tokenizer:
@@ -170,15 +203,19 @@ class Tokenizer:
     def correct(self, word: str) -> List[Dict[str, Any]]:
         """Morphology-aware correction of an OOV word.
 
-        Turkish is agglutinative, so a typo usually sits in the STEM of a
-        fully-inflected word ("mektobumu"). Matching the whole surface
-        against root forms is hopeless; instead, for each plausible stem
-        length we fuzzy-correct the prefix to a near in-lexicon root, glue
-        the untouched suffix tail back on, and RE-PARSE. A candidate is
-        kept only if the corrected word parses cleanly in-lexicon — the
-        parser is the oracle that rejects illegal suffix chains. Candidates
-        are ranked by parse score minus an edit-distance penalty.
+        Turkish is agglutinative, so a typo can sit either in the STEM of a
+        fully-inflected word ("mektobumu") or in the inflectional TAIL
+        ("evlerimizdne"). Two passes handle these, both validated by
+        re-parsing — the parser is the oracle that rejects illegal results:
 
+          - STEM repair: for each plausible stem length, fuzzy-correct the
+            prefix to a near in-lexicon root, glue the untouched tail back
+            on, re-parse.
+          - TAIL repair: anchor at the longest valid in-lexicon root
+            prefixes and brute-force a single edit over the (bounded) tail,
+            re-parse.
+
+        Candidates are ranked by parse score minus an edit-distance penalty.
         Returns full-word corrections, best first, each a dict with the
         corrected surface ("word"), its lemma, split, and the edit distance.
         """
@@ -189,27 +226,21 @@ class Tokenizer:
         whole = self._parser_top.parse(folded)
         if whole and not whole[0].oov:
             return []
-        fuzzy = self._fuzzy_index()
         # corrected surface -> (score, Analysis, distance)
         best: Dict[str, tuple] = {}
-        max_stem = min(len(folded), _MAX_STEM_LEN)
-        for r in range(_MIN_STEM_LEN, max_stem + 1):
-            stem, rest = folded[:r], folded[r:]
-            for cand, dist, _freq in fuzzy.nearest(
-                    stem, max_distance=_STEM_MAX_DISTANCE,
-                    limit=_NEAR_ROOTS_PER_STEM):
-                if cand == stem:
-                    continue  # no stem typo at this split
-                corrected = cand + rest
-                analyses = self._parser_top.parse(corrected)
-                if not analyses or analyses[0].oov:
-                    continue
-                top = analyses[0]
-                score = top.score - dist * _STEM_EDIT_PENALTY
-                prev = best.get(corrected)
-                if prev is None or score > prev[0]:
-                    best[corrected] = (score, top, dist)
-        ranked = sorted(best.values(), key=lambda v: -v[0])[:self.config.max_suggestions]
+        self._repair_stem(folded, best)
+        if self.config.correct_tail_typos:
+            self._repair_tail(folded, best)
+        # Rank: fewest edits first; then the SIMPLEST analysis (fewest
+        # morphemes) so a doubled-letter fix (öğretmenn -> öğretmen) is not
+        # beaten by a longer inflected reading that merely scores higher for
+        # covering more surface (öğretmenin); parse score is the final tie-
+        # break, which favours the more frequent root.
+        # best.values() are (score, Analysis, distance) tuples.
+        ranked = sorted(
+            best.values(),
+            key=lambda v: (v[2], len(v[1].morphemes), -v[0]),
+        )[:self.config.max_suggestions]
         out: List[Dict[str, Any]] = []
         for score, top, dist in ranked:
             d = self._analysis_to_dict(top)
@@ -225,6 +256,50 @@ class Tokenizer:
                 "distance": dist,
             })
         return out
+
+    def _record(self, best: Dict[str, tuple], corrected: str,
+                top: Analysis, dist: int) -> None:
+        """Keep the best-scoring analysis seen for a corrected surface."""
+        score = top.score - dist * _STEM_EDIT_PENALTY
+        prev = best.get(corrected)
+        if prev is None or score > prev[0]:
+            best[corrected] = (score, top, dist)
+
+    def _repair_stem(self, folded: str, best: Dict[str, tuple]) -> None:
+        """Fuzzy-correct a mistyped stem at each plausible split, re-parse."""
+        fuzzy = self._fuzzy_index()
+        max_stem = min(len(folded), _MAX_STEM_LEN)
+        for r in range(_MIN_STEM_LEN, max_stem + 1):
+            stem, rest = folded[:r], folded[r:]
+            for cand, dist, _freq in fuzzy.nearest(
+                    stem, max_distance=_STEM_MAX_DISTANCE,
+                    limit=_NEAR_ROOTS_PER_STEM):
+                if cand == stem:
+                    continue  # no stem typo at this split
+                corrected = cand + rest
+                analyses = self._parser_top.parse(corrected)
+                if analyses and not analyses[0].oov:
+                    self._record(best, corrected, analyses[0], dist)
+
+    def _repair_tail(self, folded: str, best: Dict[str, tuple]) -> None:
+        """Repair a typo in the inflectional tail.
+
+        Inflectional typos sit in the final morpheme(s), so a single edit is
+        brute-forced over only the trailing window of the word and validated
+        by re-parsing. This fixes suffix-internal typos (evlerimizdne ->
+        evlerimizden) that stem repair cannot — stem repair leaves the broken
+        tail untouched. Confining edits to the tail keeps the stem fixed (so
+        no spurious root is invented) and bounds the candidate count."""
+        n = len(folded)
+        start = max(_MIN_STEM_LEN, n - _TAIL_EDIT_WINDOW)
+        if start >= n:
+            return
+        head, region = folded[:start], folded[start:]
+        for edited in _edits1(region):
+            corrected = head + edited
+            analyses = self._parser_top.parse(corrected)
+            if analyses and not analyses[0].oov:
+                self._record(best, corrected, analyses[0], 1)
 
     def _oov_suggestions(self, word: str) -> List[Dict[str, Any]]:
         """Best available OOV help: morphology-aware corrections when the
