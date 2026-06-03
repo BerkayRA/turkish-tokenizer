@@ -263,6 +263,27 @@ def main(argv):
         if deriv_applied:
             print(f"  (applied {deriv_applied} derivational flags via {overrides_path.name})")
 
+        # (c) Additions: curated entries (a proper-noun gazetteer) that the
+        # corpus doesn't contain. Idempotent — forms already present are
+        # skipped. lexicon_full.json inherits these via its --base lexicon.
+        existing_forms = {e["form"] for e in entries}
+        added = 0
+        for add in overrides.get("additions", []):
+            if "form" not in add or "class" not in add:
+                continue
+            if add["form"] in existing_forms:
+                continue
+            entries.append({
+                "form": add["form"],
+                "class": add["class"],
+                "frequency": int(add.get("frequency", 0)),
+                "soften": bool(add.get("soften", False)),
+            })
+            existing_forms.add(add["form"])
+            added += 1
+        if added:
+            print(f"  (added {added} curated entries via {overrides_path.name})")
+
     out = {
         "version":   "0.1",
         "source":    "UD_Turkish-IMST",

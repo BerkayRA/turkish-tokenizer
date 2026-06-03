@@ -216,6 +216,19 @@ The default is `--split all` (every `.conllu` in the directory). The script dete
 
 Re-extract whenever you change the extraction logic, update the UD corpus, or add new irregular overrides. The output is deterministic.
 
+### Curated additions (proper-noun gazetteer)
+
+The lexicon is corpus-derived, so it does not systematically contain proper nouns (country and place names, etc.) — those otherwise fall to the OOV path. Curated entries live in the `additions` array of `lexicon_overrides.json` (a seed gazetteer of countries and Turkish cities). They are applied:
+
+- on regeneration, by `extract_lexicon.py` (and inherited by `lexicon_full.json`, which is built from `lexicon.json`);
+- to already-built lexicons, by `apply_additions.py` (idempotent, format-preserving):
+
+```bash
+python apply_additions.py            # merges into lexicon.json + lexicon_full.json
+```
+
+`lexicon_train.json` is intentionally left out so the no-leakage evaluation stays honest. Person names are deliberately excluded — an unbounded class best left to the OOV path / NER. Extend the gazetteer by adding entries to the `additions` array.
+
 ## Extending the morphology — adding a new suffix
 
 Adding a suffix is a three-step change. First, write the entry in `inventory.json`. Second, add a transition in `morphotactics.json` saying which states it can leave from and which state it leads to. Third (optional), if the suffix needs a phonological alternation not covered by the existing rules, add a forward/inverse pair in `tr_rules.py`.
