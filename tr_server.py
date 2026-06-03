@@ -33,6 +33,24 @@ from tr_api import Tokenizer, TokenizerConfig
 
 HERE = Path(__file__).parent
 
+_TRUE_STRINGS = {"1", "true", "yes", "on", "t"}
+_FALSE_STRINGS = {"0", "false", "no", "off", "f", ""}
+
+
+def _to_bool(value):
+    """Coerce a query/body value to True/False, or None if absent/unknown.
+    None means 'let the tokenizer use its configured default'."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    s = str(value).strip().lower()
+    if s in _TRUE_STRINGS:
+        return True
+    if s in _FALSE_STRINGS:
+        return False
+    return None
+
 
 # The HTML page lives in a separate file so it can be edited without
 # touching Python. Loaded once at server start.
@@ -53,6 +71,7 @@ class TokenizerHandler(BaseHTTPRequestHandler):
 
     tokenizer: Tokenizer = None
     html: str = ""
+    max_text_chars: int = 50000   # cap on /api/tokenize_text input (configurable)
 
     # -------- shared helpers --------
 
@@ -114,7 +133,19 @@ class TokenizerHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "missing 'word' parameter"},
                                 status=400)
                 return
-            result = self.tokenizer.tokenize(words[0])
+
+            # Per-request toggles (absent -> tokenizer default). Short query
+            # names: suggest, tail (suffix-tail repair), alts (alternatives).
+            def flag(name):
+                vals = qs.get(name)
+                return _to_bool(vals[0]) if vals else None
+
+            result = self.tokenizer.tokenize(
+                words[0],
+                suggest=flag("suggest"),
+                tail_repair=flag("tail"),
+                alternatives=flag("alts"),
+            )
             self._send_json(result)
         except Exception as e:
             traceback.print_exc()
@@ -135,13 +166,25 @@ class TokenizerHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "missing 'text' field"},
                                 status=400)
                 return
-            # Cap on input size to keep the demo from hanging on
-            # someone pasting a novel.
-            if len(text) > 5000:
-                self._send_json({"error": "text too long (max 5000 chars)"},
-                                status=400)
+            # Cap on input size (configurable via --max-text-chars). Large
+            # documents should be sent in chunks rather than one huge body.
+            if len(text) > self.max_text_chars:
+                self._send_json(
+                    {"error": f"text too long (max {self.max_text_chars} chars)"},
+                    status=400)
                 return
-            result = self.tokenizer.tokenize_text(text)
+            # Per-request toggles, e.g. {"options": {"tail_repair": false,
+            # "suggest": false, "split_clitics": true, "alternatives": false}}.
+            # Turning the lengthy ones off is the fast path for bulk/document
+            # tokenization.
+            opts = body.get("options") or {}
+            result = self.tokenizer.tokenize_text(
+                text,
+                split_clitics=_to_bool(opts.get("split_clitics")),
+                suggest=_to_bool(opts.get("suggest")),
+                tail_repair=_to_bool(opts.get("tail_repair")),
+                alternatives=_to_bool(opts.get("alternatives")),
+            )
             self._send_json(result)
         except Exception as e:
             traceback.print_exc()
@@ -157,12 +200,16 @@ def main():
                          "use 0.0.0.0 to accept external traffic)")
     ap.add_argument("--lexicon", default=str(HERE / "lexicon.json"),
                     help="lexicon JSON to load")
+    ap.add_argument("--max-text-chars", type=int, default=50000,
+                    help="max characters accepted by /api/tokenize_text "
+                         "(default: 50000; raise for larger documents)")
     args = ap.parse_args()
 
     print(f"Loading tokenizer (lexicon: {args.lexicon}) ...", file=sys.stderr)
     cfg = TokenizerConfig(lexicon_path=Path(args.lexicon))
     TokenizerHandler.tokenizer = Tokenizer(cfg)
     TokenizerHandler.html = _load_html()
+    TokenizerHandler.max_text_chars = args.max_text_chars
     print(f"Loaded. Serving on http://{args.host}:{args.port}/",
           file=sys.stderr)
 
