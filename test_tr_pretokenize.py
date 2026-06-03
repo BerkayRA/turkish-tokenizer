@@ -95,12 +95,11 @@ class TestSplitQuestionClitic(unittest.TestCase):
 
     def test_splits_agreement_cluster_over_oov_stem(self):
         # Particle + agreement (mısınız) is unambiguous, so it splits even
-        # when the stem carries an OOV root (Çekoslovakya is not in the
-        # lexicon). The bare-particle path still requires an in-lex stem.
-        canary = "çekoslovakyalılaştıramadıklarımızdanmısınız"
+        # when the stem carries an OOV root — here a wholly invented proper
+        # noun. The bare-particle path still requires an in-lex stem.
         self.assertEqual(
-            self.split(canary),
-            ["çekoslovakyalılaştıramadıklarımızdan", "mısınız"])
+            self.split("zorglandiyalılardanmısınız"),
+            ["zorglandiyalılardan", "mısınız"])
 
     def test_evidential_not_split(self):
         """-mış/-miş + agreement (okumuşsun) must NOT be read as a particle."""
@@ -162,6 +161,9 @@ class TestTokenizerClitics(unittest.TestCase):
                          ["çekoslovakyalılaştıramadıklarımızdan", "mısınız"])
         # The particle segment is rooted at the interrogative particle.
         self.assertEqual(r["segments"][1]["root"], "mı")
+        # Çekoslovakya is now in the lexicon, so the stem resolves in-lex.
+        self.assertEqual(r["segments"][0]["root"], "çekoslovakya")
+        self.assertFalse(r["segments"][0]["oov"])
 
     def test_word_mode_split_off_is_flat(self):
         r = self.tok.tokenize("gelecekmisin", split_clitics=False)
