@@ -153,3 +153,17 @@ Cost: a few hours. Value: cleanup; makes onboarding easier for the NEXT next Cla
 After that, **#7 (morphological-correctness eval)** would put the project on a much more honest footing — the eval would actually align with the design intent, and the next person making changes wouldn't be flying blind on whether they're improving or regressing.
 
 The trick word `muvaffakiyetsizleştiricileştiriveremeyebileceklerimizdenmişsinizcesine` should continue to parse end-to-end. Test it after every parser change.
+
+---
+
+## Learning projects
+
+### Implement BPE from scratch
+
+Eventually reimplement Byte-Pair Encoding (and ideally Unigram-LM) training
+from scratch as a learning exercise — the iterative most-frequent-pair merge
+loop, the merge table, encode/decode — rather than only driving SentencePiece
+/ Hugging Face. Goal is understanding, not replacing the battle-tested
+libraries in the production tokenizer-training path. A natural place to
+compare it against our morpheme-aware experiments (does a from-scratch BPE,
+or a morphology-constrained variant, lower fertility on Turkish?).
