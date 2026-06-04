@@ -41,6 +41,19 @@ class TestBoundaryHelpers(unittest.TestCase):
         # kitab|ım|ı -> cuts at 5 and 7
         self.assertEqual(F._morpheme_boundaries(analysis), {5, 7})
 
+    def test_score_corpus_reusable(self):
+        from tr_api import Tokenizer, TokenizerConfig
+        tok = Tokenizer(TokenizerConfig(
+            suggest_on_oov=False, include_alternatives=False))
+        # whitespace -> fertility 1.0, no internal boundaries
+        ws = F.score_corpus(F.WhitespaceAdapter(), ["kitabımı okudum"], tok)
+        self.assertEqual(ws["fertility"], 1.0)
+        self.assertEqual(ws["words"], 2)
+        # char -> captures every morpheme boundary (recall 1.0)
+        ch = F.score_corpus(F.CharAdapter(), ["kitabımı okudum"], tok)
+        self.assertEqual(ch["boundary_recall"], 1.0)
+        self.assertGreater(ch["fertility"], 1.0)
+
     def test_char_boundaries_superset_of_morphemes(self):
         # The char tokenizer cuts at every position, so it must capture every
         # morpheme boundary (recall = 1.0 by construction).

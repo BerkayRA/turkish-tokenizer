@@ -82,6 +82,20 @@ class HfAdapter:
         return self._tk.tokenize(word)
 
 
+class TokenizersAdapter:
+    """A Hugging Face `tokenizers` model saved as a tokenizer.json
+    (e.g. a byte-level BPE trained with ByteLevelBPETokenizer)."""
+    def __init__(self, path):
+        try:
+            from tokenizers import Tokenizer as _HFTok
+        except ImportError:
+            sys.exit("--tokenizers-json needs the `tokenizers` package")
+        self._tk = _HFTok.from_file(path)
+        self.name = f"tokenizers:{Path(path).name}"
+    def encode(self, word):
+        return self._tk.encode(word).tokens
+
+
 def _clean(piece):
     for m in _MARKERS:
         if piece.startswith(m):
@@ -116,6 +130,57 @@ def _morpheme_boundaries(analysis):
     return bounds
 
 
+def score_corpus(adapter, lines, tok, limit=None):
+    """Score `adapter` over an iterable of text lines, using `tok` (a
+    Tokenizer) as the morphological reference. Returns a metrics dict. This
+    is the reusable core — the CLI and external harnesses both call it."""
+    n_words = n_subtok = n_morph = n_single = 0
+    b_hit = b_sub = b_morph = n_aligned = 0
+    stop = False
+    for line in lines:
+        if stop:
+            break
+        for surface, kind in _split_text(line.rstrip("\n")):
+            if kind != "word":
+                continue
+            word = surface.lower()
+            pieces = adapter.encode(word)
+            if not pieces:
+                continue
+            n_words += 1
+            n_subtok += len(pieces)
+            if len(pieces) == 1:
+                n_single += 1
+            analysis = tok.tokenize(word, suggest=False, tail_repair=False,
+                                    alternatives=False, split_clitics=False)
+            morphs = analysis.get("morphemes", []) if analysis.get("parsed") else []
+            n_morph += max(1, len(morphs))
+            mb = _morpheme_boundaries(analysis) if morphs else set()
+            sb = _internal_boundaries(pieces, word)
+            if sb is not None:
+                n_aligned += 1
+                b_sub += len(sb)
+                b_morph += len(mb)
+                b_hit += len(sb & mb)
+            if limit and n_words >= limit:
+                stop = True
+                break
+
+    prec = b_hit / b_sub if b_sub else 0.0
+    rec = b_hit / b_morph if b_morph else 0.0
+    f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) else 0.0
+    return {
+        "name": getattr(adapter, "name", "?"),
+        "words": n_words, "subword_tokens": n_subtok, "morphemes": n_morph,
+        "fertility": (n_subtok / n_words) if n_words else 0.0,
+        "tokens_per_morpheme": (n_subtok / n_morph) if n_morph else 0.0,
+        "morphemes_per_word": (n_morph / n_words) if n_words else 0.0,
+        "single_token_pct": (100 * n_single / n_words) if n_words else 0.0,
+        "aligned_pct": (100 * n_aligned / n_words) if n_words else 0.0,
+        "boundary_precision": prec, "boundary_recall": rec, "boundary_f1": f1,
+    }
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -124,6 +189,7 @@ def main(argv):
                     default="whitespace", help="built-in baseline adapter")
     ap.add_argument("--spm", help="SentencePiece .model path")
     ap.add_argument("--hf", help="Hugging Face tokenizer name or directory")
+    ap.add_argument("--tokenizers-json", help="Hugging Face tokenizers tokenizer.json")
     ap.add_argument("--limit", type=int, default=None,
                     help="stop after N word tokens")
     ap.add_argument("--lexicon", default=None)
@@ -133,6 +199,8 @@ def main(argv):
         adapter = SpmAdapter(args.spm)
     elif args.hf:
         adapter = HfAdapter(args.hf)
+    elif args.tokenizers_json:
+        adapter = TokenizersAdapter(args.tokenizers_json)
     elif args.tokenizer == "char":
         adapter = CharAdapter()
     else:
@@ -143,60 +211,26 @@ def main(argv):
         cfg["lexicon_path"] = Path(args.lexicon)
     tok = Tokenizer(TokenizerConfig(**cfg))
 
-    n_words = n_subtok = n_morph = n_single = 0
-    b_hit = b_sub = b_morph = 0     # boundary intersection / subword / morpheme
-    n_aligned = 0
     t0 = time.time()
-
     lines = (sys.stdin if args.input in ("-", None)
              else open(args.input, encoding="utf-8"))
     try:
-        for line in lines:
-            for surface, kind in _split_text(line.rstrip("\n")):
-                if kind != "word":
-                    continue
-                word = surface.lower()
-                pieces = adapter.encode(word)
-                if not pieces:
-                    continue
-                n_words += 1
-                n_subtok += len(pieces)
-                if len(pieces) == 1:
-                    n_single += 1
-                analysis = tok.tokenize(word, suggest=False, tail_repair=False,
-                                        alternatives=False, split_clitics=False)
-                morphs = analysis.get("morphemes", []) if analysis.get("parsed") else []
-                n_morph += max(1, len(morphs))
-                mb = _morpheme_boundaries(analysis) if morphs else set()
-                sb = _internal_boundaries(pieces, word)
-                if sb is not None:
-                    n_aligned += 1
-                    b_sub += len(sb)
-                    b_morph += len(mb)
-                    b_hit += len(sb & mb)
-                if args.limit and n_words >= args.limit:
-                    raise StopIteration
-    except StopIteration:
-        pass
+        m = score_corpus(adapter, lines, tok, limit=args.limit)
     finally:
         if lines is not sys.stdin:
             lines.close()
 
-    if not n_words:
+    if not m["words"]:
         sys.exit("no word tokens found in input")
-    dt = time.time() - t0
-    prec = b_hit / b_sub if b_sub else 0.0
-    rec = b_hit / b_morph if b_morph else 0.0
-    f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) else 0.0
-
     print(f"tokenizer: {adapter.name}")
-    print(f"corpus:    {args.input}   ({n_words} words in {dt:.1f}s)")
-    print(f"  fertility (tokens/word):   {n_subtok / n_words:6.3f}")
-    print(f"  tokens / morpheme:         {n_subtok / n_morph:6.3f}")
-    print(f"  morphemes / word:          {n_morph / n_words:6.3f}")
-    print(f"  single-token words:        {100 * n_single / n_words:5.1f}%")
-    print(f"  boundary alignment ({100 * n_aligned / n_words:.0f}% of words reconstructible):")
-    print(f"    precision: {prec:.3f}   recall: {rec:.3f}   F1: {f1:.3f}")
+    print(f"corpus:    {args.input}   ({m['words']} words in {time.time() - t0:.1f}s)")
+    print(f"  fertility (tokens/word):   {m['fertility']:6.3f}")
+    print(f"  tokens / morpheme:         {m['tokens_per_morpheme']:6.3f}")
+    print(f"  morphemes / word:          {m['morphemes_per_word']:6.3f}")
+    print(f"  single-token words:        {m['single_token_pct']:5.1f}%")
+    print(f"  boundary alignment ({m['aligned_pct']:.0f}% of words reconstructible):")
+    print(f"    precision: {m['boundary_precision']:.3f}   "
+          f"recall: {m['boundary_recall']:.3f}   F1: {m['boundary_f1']:.3f}")
     return 0
 
 
