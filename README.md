@@ -100,6 +100,20 @@ secondary to morphological correctness — see the design notes.)
 | [QUICKREF.md](QUICKREF.md) | Compact reference for suffix IDs and features |
 | [SUGGESTIONS.md](SUGGESTIONS.md) | Possible next directions |
 
+## Project family
+
+**You are here: `turkish-tokenizer`** — the morphological analyzer at the base of a
+four-repository effort to build a Turkish LLM from the data up:
+
+| Repo | Role |
+|------|------|
+| **turkish-tokenizer** (this repo) | Zero-dependency Turkish morphological analyzer + fertility metric (`tr_fertility.py`) |
+| [turkish-llm](https://github.com/BerkayRA/turkish-llm) | Tokenizer training/eval lab (uses this repo as a submodule) + from-scratch model architecture spec |
+| [turkish-corpus](https://github.com/BerkayRA/turkish-corpus) | HPLT-anchored corpus pipeline (clean → dedup → blend) |
+| [turkish-llm-demo](https://github.com/BerkayRA/turkish-llm-demo) | End-to-end on-prem demo: live training, Turkish chatbot, tokenizer visualizer, executive dashboard |
+
+Pipeline: **turkish-tokenizer → turkish-llm → turkish-corpus → turkish-llm-demo**.
+
 ## License
 
 [MIT](LICENSE)
